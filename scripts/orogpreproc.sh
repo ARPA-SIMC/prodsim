@@ -12,17 +12,28 @@ NX=721 # 12*60+1
 NY=703 # 11.7*60+1
 GRIB_TEMPLATE=template.grib
 
-# input points to a local directory on malina:/scratch/dcesari where
-# globe dataset is stored and globalized for gdal
-# vg6d_transform --trans-type=boxinter --sub-type=average --type=regular_ll \
-vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll \
-	       --nx=$NX --ny=$NY \
-	       --x-min=$XMIN --y-min=$YMIN --x-max=$XMAX --y-max=$YMAX \
-	       gdal,6.,35.,20.,48.:$SCRATCH/gis/raster/globe_30s/globe.vrt \
-	       grib_api:${GRIB_TEMPLATE}:orog_tmp.grib
 
-# replace missing values (~sea) with zeroes
-vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
-	       --maskbounds=0. orog_tmp.grib orog_hires.grib
+# SOURCE points to a shared directory in ARPA-SIMC LAN
+# from https://www.ngdc.noaa.gov/mgg/topo/globe.html
+# SOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
+# from http://www.marine-geo.org/portals/gmrt/about.php
+SOURCE=/autofs/scratch-mod/dcesari/topo/gmrt/GMRTv3_3_20170216topo.tif
 
-rm -f orog_tmp.grib
+# compute average, maximum and minimum for each cell
+for stat in average max min; do
+
+    vg6d_transform --trans-type=boxinter --sub-type=$stat --type=regular_ll \
+		   --nx=$NX --ny=$NY \
+		   --x-min=$XMIN --y-min=$YMIN --x-max=$XMAX --y-max=$YMAX \
+		   gdal,6.,35.,20.,48.:$SOURCE \
+		   grib_api:${GRIB_TEMPLATE}:orog_tmp.grib
+
+# set to invalid sea points (only for gmrt, to avoid bathymetry)
+    vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \
+		   --maskbounds=-15000.,0. orog_tmp.grib orog_tmp2.grib
+# replace invalid values (~sea) with zeroes (for both)
+    vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
+		   --maskbounds=0. orog_tmp2.grib orog_hires_$stat.grib
+
+    rm -f orog_tmp.grib orog_tmp2.grib
+done
