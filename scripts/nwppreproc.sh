@@ -23,7 +23,8 @@ STEP='0 01'
 # product: wind, t and dew-point t, total precipitation, direct and diffuse radiation (COSMO specific)
 PROD_CONST="GRIB1,,2,6 or GRIB1,,2,81"
 PROD_WIND="GRIB1,,2,33 or GRIB1,,2,34"
-PROD_TTD="GRIB1,,2,11 or GRIB1,,2,17"
+PROD_T="GRIB1,,2,11"
+PROD_TD="GRIB1,,2,17"
 PROD_PREC="GRIB1,,2,61"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
 # timerange: instantaneous, accumulated, averaged
@@ -35,25 +36,28 @@ LEV_HOS="GRIB1,105"
 LEV_SURF="GRIB1,1"
 
 # clean old files
-rm -f uv.grib ttd.grib prec.grib rad.grib sd.grib trh.grib precacc.grib radavg.grib
+rm -f const.grib uv.grib t.grib td.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
 # split the query to avoid undesired fields because of "or" operator
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS >> const.grib
+	   "reftime: ==$DATE; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS >> uv.grib
+	   "reftime: ==$DATE; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS > uv.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_TTD; timerange: $TR_IST; level: $LEV_HOS" $DS >> ttd.grib
+	   "reftime: ==$DATE; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  >> prec.grib
+	   "reftime: ==$DATE; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS  >> rad.grib
+	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
+arki-query --data \
+	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
 
-# compute height of surface (and keep land fraction)
-vg6d_transform --output-variable-list=B10007,B29192 const.grib constz.grib
+# compute height of surface (and throw away land fraction B29192)
+vg6d_transform --output-variable-list=B10009 const.grib constz.grib
 # compute wind speed and wind direction
 vg6d_transform --output-variable-list=B11001,B11002 uv.grib sd.grib
-# compute relative humidity (and keep temperature)
-vg6d_transform --output-variable-list=B13003,B12101 ttd.grib trh.grib
+# compute relative humidity
+cat t.grib td.grib > ttd.grib
+vg6d_transform --output-variable-list=B13003 ttd.grib rh.grib
 
 # accumulate on desired interval
 vg6d_transform --comp-stat-proc=1:1 --comp-step="$STEP" prec.grib precacc.grib

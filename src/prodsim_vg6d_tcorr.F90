@@ -203,8 +203,8 @@ IF (c_e(tindex)) THEN
           WHERE(c_e(volgrid(1)%voldati(:,:,i,j,k,tindex)))
             volgrid(1)%voldati(:,:,i,j,k,tindex) = &
              volgrid(1)%voldati(:,:,i,j,k,tindex) + &
-             tgrad*(volgrid_oo(1)%voldati(:,:,i,j,k,tindex) - &
-             volgrid_io(1)%voldati(:,:,i,j,k,tindex))
+             tgrad*(volgrid_oo(1)%voldati(:,:,1,1,1,1) - &
+             volgrid_io(1)%voldati(:,:,1,1,1,1))
           END WHERE
         ENDIF
       ENDDO
