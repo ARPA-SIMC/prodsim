@@ -13,11 +13,16 @@ NY=703 # 11.7*60+1
 GRIB_TEMPLATE=template.grib
 
 
-# SOURCE points to a shared directory in ARPA-SIMC LAN
+# OROGSOURCE points to a shared directory in ARPA-SIMC LAN
 # from https://www.ngdc.noaa.gov/mgg/topo/globe.html
-# SOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
+OROGSOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
 # from http://www.marine-geo.org/portals/gmrt/about.php
-SOURCE=/autofs/scratch-mod/dcesari/topo/gmrt/GMRTv3_3_20170216topo.tif
+# OROGSOURCE=/autofs/scratch-mod/dcesari/topo/gmrt/GMRTv3_3_20170216topo.tif
+
+# first make an identical transformation to grib
+vg6d_transform --trans-type=none \
+	       gdal,6.,35.,20.,48.:$OROGSOURCE \
+	       grib_api:${GRIB_TEMPLATE}:orog_full.grib
 
 # compute average, maximum and minimum for each cell
 for stat in average max min; do
@@ -25,8 +30,7 @@ for stat in average max min; do
     vg6d_transform --trans-type=boxinter --sub-type=$stat --type=regular_ll \
 		   --nx=$NX --ny=$NY \
 		   --x-min=$XMIN --y-min=$YMIN --x-max=$XMAX --y-max=$YMAX \
-		   gdal,6.,35.,20.,48.:$SOURCE \
-		   grib_api:${GRIB_TEMPLATE}:orog_tmp.grib
+		   orog_full.grib orog_tmp.grib
 
 # set to invalid sea points (only for gmrt, to avoid bathymetry)
     vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \

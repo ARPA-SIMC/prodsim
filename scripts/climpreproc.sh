@@ -30,8 +30,19 @@ done
 
 # prepare corresponding orography (assuming it's compatible with the
 # one used for the climatic dataset)
+
+# first make an identical transformation to grib
+vg6d_transform --trans-type=none \
+	       gdal,6.,35.,20.,48.:$OROGSOURCE \
+	       grib_api:${lfile}_1991_cut.grib:orog_full1.grib
+
+# set to invalid sea points (only for gmrt, to avoid bathymetry)
+vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \
+	       --maskbounds=-15000.,0. orog_full1.grib orog_full2.grib
+# replace invalid values (~sea) with zeroes (for both)
+vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
+	       --maskbounds=0. orog_full2.grib orog_full3.grib
+
 vg6d_transform --trans-type=boxinter --sub-type=average --type=regular_ll \
 	       --output-format=grib_api:${lfile}_1991_cut.grib \
-	       gdal,6.,35.,20.,48.:$OROGSOURCE \
-	       grib_api:${lfile}_1991_cut.grib:orog_cut.grib
-
+	       orog_full3.grib orog_cut.grib
