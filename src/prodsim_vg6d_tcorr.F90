@@ -192,6 +192,8 @@ DO j = 1, SIZE(volgrid(1)%var)
     EXIT
   ENDIF
 ENDDO
+! avoid check on variable for now
+tindex = 1
 
 IF (c_e(tindex)) THEN
   DO k = 1, SIZE(volgrid(1)%timerange)
