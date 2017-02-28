@@ -19,8 +19,9 @@ for file in $CLIMSOURCE/cru_v3_???_clim10.nc; do
     # local directory
     lfile=${file##*/}
     lfile=${lfile%.nc}
-    # convert in grib
-    cdo -f grb copy $file $lfile.grib
+    # convert in grib setting correct parameter and unit
+    # add setmisstonn to fill missing data
+    cdo -f grb setparam,11.2 -addc,273.15 $file $lfile.grib
     # keep only last decade 1991-2000
     grib_copy -w yearOfCentury=91 $lfile.grib ${lfile}_1991.grib
     vg6d_transform --trans-type=zoom --sub-type=coord \
