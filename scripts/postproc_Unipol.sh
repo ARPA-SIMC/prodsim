@@ -69,7 +69,7 @@ vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
 # ...
 
 
-########################### da OROGPREPROC
+###########################  OROGPREPROC
 
 # first make an identical transformation to grib
 vg6d_transform --trans-type=none \
@@ -95,7 +95,7 @@ vg6d_transform --trans-type=none \
 #done
 
 
-########################### da CLIMPREPROC 
+###########################  CLIMPREPROC (to run just the first time)
 
 # convert then cut in time and space
 for file in $CLIMSOURCE/cru_v3_???_clim10.nc; do
@@ -103,7 +103,7 @@ for file in $CLIMSOURCE/cru_v3_???_clim10.nc; do
     lfile=${file##*/}
     lfile=${lfile%.nc}
     # convert in grib setting correct parameter and unit
-    # add setmisstonn to fill missing data (to do only the first time)
+    # add setmisstonn to fill missing data
     cdo -f grb setparam,11.2 -addc,273.15 -setmisstonn $file $lfile.grib
     
     # keep only last decade 1991-2000
@@ -153,7 +153,7 @@ vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog
 # clime interpolation over high resolution grid + temperature correction (moist adiabatic lapse rate) due to differences in orography 
 
 for temp in tmn tmx tmp; do
-vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib $SCRIPTS/cru_v3_${temp}_clim10_1991_cut.grib grib_api:orog_average_cut_hires.grib:cru_v3_${temp}_clim10_interp.grib
+vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib cru_v3_${temp}_clim10_1991_cut.grib grib_api:orog_average_cut_hires.grib:cru_v3_${temp}_clim10_interp.grib
 
 $SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=orog_average_cut_hires.grib --output-orograhy=orog_hires_average.grib cru_v3_${temp}_clim10_interp.grib cru_v3_${temp}_clim10_tcorr_saturo.grib
 
@@ -243,11 +243,6 @@ $INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib an
 cat anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib > anomalie_minime.grib
 
 rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
-
-
-##################################################
-#gfortran -c -g -I/usr/lib64/gfortran/modules/ anomalie_prova.F90 
-#gfortran -o anomalie_prova anomalie_prova.o -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d 
 
 
 
