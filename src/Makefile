@@ -7,10 +7,10 @@ FCFLAGS = -g -fbounds-check
 FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
 
 # libraries needed for linking, unused in the examples
-LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d
+LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -lgrib_api
 
 # List of executables to be built within the package
-PROGRAMS = prodsim_vg6d_tcorr prodsim_create_projgrib prodsim_v7d_fast_read
+PROGRAMS = prodsim_vg6d_tcorr prodsim_create_projgrib prodsim_v7d_fast_read prodsim_scangrib
 
 # "make" builds all
 all: $(PROGRAMS)
