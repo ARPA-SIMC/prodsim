@@ -25,6 +25,7 @@ PROD_CONST="GRIB1,,2,6 or GRIB1,,2,81"
 PROD_WIND="GRIB1,,2,33 or GRIB1,,2,34"
 PROD_T="GRIB1,,2,11"
 PROD_TD="GRIB1,,2,17"
+PROD_TS="GRIB1,,2,85"
 PROD_PREC="GRIB1,,2,61"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
 # timerange: instantaneous, accumulated, averaged
@@ -34,9 +35,10 @@ TR_AVG="GRIB1,3"
 # level: height over surface (unspecified value), surface
 LEV_HOS="GRIB1,105"
 LEV_SURF="GRIB1,1"
+LEV_SOIL="GRIB1,111"
 
 # clean old files
-rm -f const.grib uv.grib t.grib td.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
+rm -f const.grib uv.grib t.grib td.grib ts.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
 # split the query to avoid undesired fields because of "or" operator
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
@@ -46,6 +48,8 @@ arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
+arki-query --data \
+	   "reftime: ==$DATE; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
 arki-query --data \
