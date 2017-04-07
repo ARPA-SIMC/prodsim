@@ -20,7 +20,7 @@ DATEFILE=$1$2$3$4
 # arkimet dataset
 DS=http://arkimet.metarpa:8090/dataset/lmsmr6x54
 # accumulation step
-STEP='0 01'
+STEP='0 12'
 
 # define useful arkimet keys
 # product: wind, t and dew-point t, total precipitation, direct and diffuse radiation (COSMO specific)
@@ -28,16 +28,20 @@ PROD_CONST="GRIB1,,2,6 or GRIB1,,2,81"
 PROD_WIND="GRIB1,,2,33 or GRIB1,,2,34"
 PROD_T="GRIB1,,2,11"
 PROD_TD="GRIB1,,2,17"
+PROD_TS="GRIB1,,2,85"
 PROD_PREC="GRIB1,,2,61"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
+PROD_TMAX="GRIB1,,2,51"
 # timerange: instantaneous, accumulated, averaged
 TR_IST="GRIB1,0"
-TR_ACC="GRIB1,4"
-#TR_ACC="GRIB1,4,,12h or GRIB1,4,,24h or GRIB1,4,,36h or GRIB1,4,,48h"
+#TR_IST2="GRIB1,0,24h, or GRIB,0,48h, "
+#TR_ACC="GRIB1,4"
+TR_ACC="GRIB1,4,,12h or GRIB1,4,,24h or GRIB1,4,,36h or GRIB1,4,,48h"
 TR_AVG="GRIB1,3"
 # level: height over surface (unspecified value), surface
 LEV_HOS="GRIB1,105"
 LEV_SURF="GRIB1,1"
+LEV_SOIL="GRIB1,111"
 
 # clean old files
 rm -f const.grib uv.grib t.grib td.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
@@ -50,6 +54,8 @@ arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
+arki-query --data \
+	   "reftime: ==$DATE; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
 arki-query --data \
@@ -76,6 +82,7 @@ vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
 vg6d_transform --trans-type=none \
 	       gdal,6.,35.,20.,48.:$OROGSOURCE \
 	       grib_api:${GRIB_TEMPLATE}:orog_full.grib
+                                       # orog_full.grib 1680x1560
 
 # compute average, maximum and minimum for each cell
 #for stat in average max min; do
@@ -87,11 +94,11 @@ vg6d_transform --trans-type=none \
 
 # set to invalid sea points (only for gmrt, to avoid bathymetry)
     vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \
-		   --maskbounds=-15000.,0. orog_tmp.grib orog_tmp2.grib
+		   --maskbounds=-15000.,0. orog_tmp.grib orog_tmp2.grib #maskbounds defines the range of values to become invalid
 # replace invalid values (~sea) with zeroes (for both)
     vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
-		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib
-
+		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib #maskbounds sets the constant value to be used
+                                                # orog_hires_average.grib 721x703
     rm -f orog_tmp.grib orog_tmp2.grib
 #done
 
@@ -133,16 +140,18 @@ vg6d_transform --trans-type=none \
 #	       --output-format=grib_api:${lfile}_1991_cut.grib \
 #	       orog_full3.grib orog_cut.grib
 
-
+                             # orog_cut.grib 25x25 
 
 
 ##################################################
 
 # climate orography interpolated over higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib $SCRIPTS/orog_cut.grib grib_api:orog_hires_average.grib:orog_average_cut_hires.grib 
+# orog_average_cut_hires.grib 721x703
 
 # nwp orography interpolated over (the same) higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib constz.grib grib_api:orog_hires_average.grib:constz_hires.grib 
+# constz_hires.grib 721x703
 
 # dati clima su grigliato finale
 # vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll
@@ -165,6 +174,8 @@ done
 
 vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib t.grib t_hires.grib 
 
+vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib ts.grib ts_hires.grib
+
 #vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib sd.grib sd_hires.grib
 
 vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib uv.grib uv_hires.grib
@@ -178,10 +189,18 @@ vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-fo
 
 $SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=constz_hires.grib --output-orograhy=orog_hires_average.grib t_hires.grib previ_tcorr_saturo_oggi.grib
 
+$SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=constz_hires.grib --output-orograhy=orog_hires_average.grib ts_hires.grib previ_ts_corr_saturo_oggi.grib
+
 # compute maximum and minimum temperature fields
 
 rm -f *_previ.grib
 grib_filter $SCRIPTS/filtra_step.txt previ_tcorr_saturo_oggi.grib
+
+
+
+#run00
+
+if [ $4 -eq 00 ]; then
 
 b=24
 c=48
@@ -223,25 +242,76 @@ cdo min ${i}_previ.grib ${j}_previ.grib minime_domani.grib
 if [ "$j" -ne "$c" ]; then
 grib_copy minime_domani.grib ${j}_previ.grib
 fi
+done
+
+fi
+
+
+#run12
+
+if [ $4 -eq 12 ]; then
+
+b=12
+c=36
+
+for ((i=0, j=1; i<=11, j<=12; i+=1, j+=1)); do
+    cdo max ${i}_previ.grib ${j}_previ.grib massime_oggi.grib
+    if [ "$j" -ne "$b" ]; then
+	grib_copy massime_oggi.grib ${j}_previ.grib
+    fi
+done
+
+for ((i=24, j=25; i<=35, j<=36; i+=1, j+=1)); do
+    cdo max ${i}_previ.grib ${j}_previ.grib massime_domani.grib
+    if [ "$j" -ne "$c" ]; then
+	grib_copy massime_domani.grib ${j}_previ.grib
+    fi
+done
+
+rm -f *_previ.grib
+grib_filter $SCRIPTS/filtra_step.txt previ_tcorr_saturo_oggi.grib
+
+b=24
+c=48
+
+for ((i=12, j=13; i<=23, j<=24; i+=1, j+=1)); do
+  
+cdo min ${i}_previ.grib ${j}_previ.grib minime_oggi.grib
+
+if [ "$j" -ne "$b" ]; then
+grib_copy minime_oggi.grib ${j}_previ.grib
+fi
 
 done
+
+for ((i=36, j=37; i<=47, j<=48; i+=1, j+=1)); do
+  
+cdo min ${i}_previ.grib ${j}_previ.grib minime_domani.grib
+
+if [ "$j" -ne "$c" ]; then
+grib_copy minime_domani.grib ${j}_previ.grib
+fi
+done
+
+fi
+
 
 rm *_previ.grib
 
 # compute tmax anomaly
 
-$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_oggi.grib anomalie_oggi_tmx_clim10_corrette_Unipol.grib
-$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_domani.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_oggi.grib anomalie_oggi_tmx_clim10_corrette_uni.grib
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_domani.grib anomalie_domani_tmx_clim10_corrette_uni.grib
 
-cat anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib > anomalie_massime.grib
+cat anomalie_oggi_tmx_clim10_corrette_uni.grib anomalie_domani_tmx_clim10_corrette_uni.grib > anomalie_massime.grib
 
-rm anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
+rm anomalie_oggi_tmx_clim10_corrette_uni.grib anomalie_domani_tmx_clim10_corrette_uni.grib
 
 # compute tmin anomaly
 
-$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_oggi.grib anomalie_oggi_tmn_clim10_corrette_Unipol.grib
-$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_oggi.grib anomalie_oggi_tmn_clim10_corrette_uni.grib
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib anomalie_domani_tmn_clim10_corrette_uni.grib
 
-cat anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib > anomalie_minime.grib
+cat anomalie_oggi_tmn_clim10_corrette_uni.grib anomalie_domani_tmn_clim10_corrette_uni.grib > anomalie_minime.grib
 
-rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
+rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_uni.grib
