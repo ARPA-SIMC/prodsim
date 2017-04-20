@@ -2,11 +2,11 @@
 
 # define domain, orogsource and climsource
 XMIN=7.
-XMAX=19.
-YMIN=35.4
+XMAX=18.5
+YMIN=35.9
 YMAX=47.1
-NX=721 # 12*60+1
-NY=703 # 11.7*60+1
+NX=691 # 11.5*60+1
+NY=673 # 11.2*60+1
 GRIB_TEMPLATE=template.grib
 OROGSOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
 CLIMSOURCE=/autofs/scratch-mod/dcesari/climatology
@@ -315,3 +315,16 @@ $INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib an
 cat anomalie_oggi_tmn_clim10_corrette_uni.grib anomalie_domani_tmn_clim10_corrette_uni.grib > anomalie_minime.grib
 
 rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_uni.grib
+
+
+# correction for vertical coordinates, dx and dy
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalie_massime_finale.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalie_minime_finale.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precacc_hires_finale.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib previ_t_finale.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib wind_speed_finale.grib
