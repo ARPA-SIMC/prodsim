@@ -13,14 +13,10 @@ CLIMSOURCE=/autofs/scratch-mod/dcesari/climatology
 SCRIPTS=/autofs/scratch-mod/ddalessandro/prodsim/scripts
 SRC=/autofs/scratch-mod/ddalessandro/prodsim/src
 INTERP=/autofs/scratch-mod/ddalessandro/prodsim/interpolamare
-
-# get date from arguments
-DATE="${1}-${2}-${3} ${4}:00"
-DATEFILE=$1$2$3$4
-# arkimet dataset
 DS=http://arkimet.metarpa:8090/dataset/lmsmr6x54
+
 # accumulation step
-STEP='0 12'
+STEP='0 01'
 
 # define useful arkimet keys
 # product: wind, t and dew-point t, total precipitation, direct and diffuse radiation (COSMO specific)
@@ -28,15 +24,14 @@ PROD_CONST="GRIB1,,2,6 or GRIB1,,2,81"
 PROD_WIND="GRIB1,,2,33 or GRIB1,,2,34"
 PROD_T="GRIB1,,2,11"
 PROD_TD="GRIB1,,2,17"
-PROD_TS="GRIB1,,2,85"
+#PROD_TS="GRIB1,,2,85"
 PROD_PREC="GRIB1,,2,61"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
-PROD_TMAX="GRIB1,,2,51"
+PROD_SDI="GRIB1,,201,141"
 # timerange: instantaneous, accumulated, averaged
 TR_IST="GRIB1,0"
-#TR_IST2="GRIB1,0,24h, or GRIB,0,48h, "
-#TR_ACC="GRIB1,4"
-TR_ACC="GRIB1,4,,12h or GRIB1,4,,24h or GRIB1,4,,36h or GRIB1,4,,48h"
+TR_ACC="GRIB1,4"
+#TR_ACC="GRIB1,4,,12h or GRIB1,4,,24h or GRIB1,4,,36h or GRIB1,4,,48h"
 TR_AVG="GRIB1,3"
 # level: height over surface (unspecified value), surface
 LEV_HOS="GRIB1,105"
@@ -45,21 +40,57 @@ LEV_SOIL="GRIB1,111"
 
 # clean old files
 rm -f const.grib uv.grib t.grib td.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
-# split the query to avoid undesired fields because of "or" operator
+
+date +"%H-%M"
+MM=$(date +"%M") # minute
+hh=$(date +"%H") # hour
+gg=$(date +"%d") # day
+mm=$(date +"%m") # month
+yyyy=$(date +"%Y") # year
+
+if [ "$hh" -lt 20 ]; then # for run00
+
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
+	   "reftime: =today 00:00; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS > uv.grib
+	   "reftime: =today 00:00; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS > uv.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib
+	   "reftime: =today 00:00; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib # COSMO I2 447x532
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
+	   "reftime: =today 00:00; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
+	   "reftime: =today 00:00; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
+	   "reftime: =today 00:00; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
+	   "reftime: =today 00:00; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
+arki-query --data \
+	   "reftime: =today 00:00; product: $PROD_SDI; timerange: $TR_IST" $DS > sdi.grib
+
+fi
+
+if [ "$hh" -ge 19 ]; then # for run12
+
+
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS > uv.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_T; timerange: $TR_IST; level: $LEV_HOS" $DS > t.grib # COSMO I2 447x532
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_TD; timerange: $TR_IST; level: $LEV_HOS" $DS > td.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_SDI; timerange: $TR_IST" $DS > sdi.grib
+
+fi
+
 
 # compute height of surface (and throw away land fraction B29192)
 vg6d_transform --output-variable-list=B10009 const.grib constz.grib
@@ -83,7 +114,6 @@ vg6d_transform --trans-type=none \
 	       gdal,6.,35.,20.,48.:$OROGSOURCE \
 	       grib_api:${GRIB_TEMPLATE}:orog_full.grib
                                        # orog_full.grib 1680x1560
-
 # compute average, maximum and minimum for each cell
 #for stat in average max min; do
 
@@ -94,13 +124,15 @@ vg6d_transform --trans-type=none \
 
 # set to invalid sea points (only for gmrt, to avoid bathymetry)
     vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \
-		   --maskbounds=-15000.,0. orog_tmp.grib orog_tmp2.grib #maskbounds defines the range of values to become invalid
+		   --maskbounds=-15000.,0. orog_tmp.grib orog_tmp2.grib  #maskbounds defines the range of values to become invalid
 # replace invalid values (~sea) with zeroes (for both)
     vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
-		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib #maskbounds sets the constant value to be used
-                                                # orog_hires_average.grib 721x703
+		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib  #maskbounds sets the constant value to be used
+                                                # orog_hires_average.grib 691x673
     rm -f orog_tmp.grib orog_tmp2.grib
 #done
+
+
 
 
 ###########################  CLIMPREPROC (to run just the first time)
@@ -147,11 +179,11 @@ vg6d_transform --trans-type=none \
 
 # climate orography interpolated over higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib $SCRIPTS/orog_cut.grib grib_api:orog_hires_average.grib:orog_average_cut_hires.grib 
-# orog_average_cut_hires.grib 721x703
+# orog_average_cut_hires.grib 691x673
 
 # nwp orography interpolated over (the same) higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib constz.grib grib_api:orog_hires_average.grib:constz_hires.grib 
-# constz_hires.grib 721x703
+# constz_hires.grib 691x673
 
 # dati clima su grigliato finale
 # vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll
@@ -174,14 +206,15 @@ done
 
 vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib t.grib t_hires.grib 
 
-vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib ts.grib ts_hires.grib
-
-#vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib sd.grib sd_hires.grib
+vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib sd.grib sd_hires.grib
 
 vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib uv.grib uv_hires.grib
 
 vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-format=grib_api:orog_average_cut_hires.grib precacc.grib precacc_hires.grib
-#grib_filter $SCRIPTS/rules.txt $SCRIPTS/sd_hires.grib
+
+grib_filter $SCRIPTS/rules.txt $SCRIPTS/sd_hires.grib
+
+grib_copy $SCRIPTS/32_sd.grib wind_speed.grib
 
 
 
@@ -189,18 +222,17 @@ vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll --output-fo
 
 $SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=constz_hires.grib --output-orograhy=orog_hires_average.grib t_hires.grib previ_tcorr_saturo_oggi.grib
 
-$SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=constz_hires.grib --output-orograhy=orog_hires_average.grib ts_hires.grib previ_ts_corr_saturo_oggi.grib
-
 # compute maximum and minimum temperature fields
 
 rm -f *_previ.grib
 grib_filter $SCRIPTS/filtra_step.txt previ_tcorr_saturo_oggi.grib
 
+rm -f anomalieTemperatureMassime_*.grib anomalieTemperatureMinime_*.grib precipitazioni_*.grib temperatura_*.grib vento_*.grib
 
-
+###########################################################################################à
 #run00
 
-if [ $4 -eq 00 ]; then
+if [ "$hh" -lt 20 ]; then
 
 b=24
 c=48
@@ -244,12 +276,61 @@ grib_copy minime_domani.grib ${j}_previ.grib
 fi
 done
 
+
+
+# compute tmax anomaly
+
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_oggi.grib anomalie_oggi_tmx_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_domani.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
+
+cat anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib > anomalie_massime.grib
+
+rm anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
+
+# compute tmin anomaly
+
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_oggi.grib anomalie_oggi_tmn_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
+
+cat anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib > anomalie_minime.grib
+
+rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
+
+# number of bands BB?
+BB1=$(grib_count anomalie_massime.grib)
+BB2=$(grib_count anomalie_minime.grib)
+BB3=$(grib_count precacc_hires.grib)
+BB4=$(grib_count previ_tcorr_saturo_oggi.grib)
+BB5=$(grib_count wind_speed.grib)
+
+#for ((i=1; i<=5; i+=1)); do
+#if [ "$BB[i]" -lt 10 ]; then
+#    ${BB?}=0${BB?}
+#fi
+#done
+
+
+
+
+# correction for vertical coordinates, dx and dy
+# for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
+
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000240${BB1}.grib
+
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000240${BB2}.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}000001${BB3}.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}000001${BB4}.grib
+
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}000001${BB5}.grib
+
 fi
 
-
+#################################################################################
 #run12
 
-if [ $4 -eq 12 ]; then
+if [ "$hh" -ge 19 ]; then
 
 b=12
 c=36
@@ -293,38 +374,51 @@ grib_copy minime_domani.grib ${j}_previ.grib
 fi
 done
 
-fi
 
-
-rm *_previ.grib
 
 # compute tmax anomaly
 
-$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_oggi.grib anomalie_oggi_tmx_clim10_corrette_uni.grib
-$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_domani.grib anomalie_domani_tmx_clim10_corrette_uni.grib
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_oggi.grib anomalie_oggi_tmx_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmx_clim10_tcorr_saturo.grib massime_domani.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
 
-cat anomalie_oggi_tmx_clim10_corrette_uni.grib anomalie_domani_tmx_clim10_corrette_uni.grib > anomalie_massime.grib
+cat anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib > anomalie_massime.grib
 
-rm anomalie_oggi_tmx_clim10_corrette_uni.grib anomalie_domani_tmx_clim10_corrette_uni.grib
+rm anomalie_oggi_tmx_clim10_corrette_Unipol.grib anomalie_domani_tmx_clim10_corrette_Unipol.grib
 
 # compute tmin anomaly
 
-$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_oggi.grib anomalie_oggi_tmn_clim10_corrette_uni.grib
-$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib anomalie_domani_tmn_clim10_corrette_uni.grib
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_oggi.grib anomalie_oggi_tmn_clim10_corrette_Unipol.grib
+$INTERP/anomalie_prova cru_v3_tmn_clim10_tcorr_saturo.grib minime_domani.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
 
-cat anomalie_oggi_tmn_clim10_corrette_uni.grib anomalie_domani_tmn_clim10_corrette_uni.grib > anomalie_minime.grib
+cat anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib > anomalie_minime.grib
 
-rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_uni.grib
+rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corrette_Unipol.grib
 
+# number of bands BB?
+BB1=$(grib_count anomalie_massime.grib)
+BB2=$(grib_count anomalie_minime.grib)
+BB3=$(grib_count precacc_hires.grib)
+BB4=$(grib_count previ_tcorr_saturo_oggi.grib)
+BB5=$(grib_count wind_speed.grib)
 
 # correction for vertical coordinates, dx and dy
+# for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalie_massime_finale.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200240${BB1}.grib
+#anomalie_massime_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalie_minime_finale.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200240${BB2}.grib
+#anomalie_minime_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precacc_hires_finale.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}120001${BB3}.grib
+#precacc_hires_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib previ_t_finale.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}120001${BB4}.grib
+#previ_t_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib wind_speed_finale.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}120001${BB5}.grib
+#wind_speed_finale.grib
+
+fi
+
+rm *_previ.grib
