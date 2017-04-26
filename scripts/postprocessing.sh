@@ -229,6 +229,34 @@ grib_filter $SCRIPTS/filtra_step.txt previ_tcorr_saturo_oggi.grib
 
 rm -f anomalieTemperatureMassime_*.grib anomalieTemperatureMinime_*.grib precipitazioni_*.grib temperatura_*.grib vento_*.grib
 
+
+# number of bands BB
+
+BB3=$(grib_count precacc_hires.grib)
+BB4=$(grib_count previ_tcorr_saturo_oggi.grib)
+BB5=$(grib_count wind_speed.grib)
+
+printf -v BB3 "%02d" $BB3
+printf -v BB4 "%02d" $BB4
+printf -v BB5 "%02d" $BB5
+
+
+# NN
+
+NN3=$(grib_get -w count=1 -p endStep precacc_hires.grib)
+
+t5=$(grib_get -w count=1 -p stepRange previ_tcorr_saturo_oggi.grib)
+t6=$(grib_get -w count=2 -p stepRange previ_tcorr_saturo_oggi.grib)
+NN4=$((t6-t5))
+
+t7=$(grib_get -w count=1 -p stepRange wind_speed.grib)
+t8=$(grib_get -w count=2 -p stepRange wind_speed.grib)
+NN5=$((t8-t7))
+
+printf -v NN3 "%02d" $NN3
+printf -v NN4 "%02d" $NN4
+printf -v NN5 "%02d" $NN5
+
 ###########################################################################################à
 #run00
 
@@ -299,31 +327,32 @@ rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corr
 # number of bands BB?
 BB1=$(grib_count anomalie_massime.grib)
 BB2=$(grib_count anomalie_minime.grib)
-BB3=$(grib_count precacc_hires.grib)
-BB4=$(grib_count previ_tcorr_saturo_oggi.grib)
-BB5=$(grib_count wind_speed.grib)
+printf -v BB1 "%02d" $BB1
+printf -v BB2 "%02d" $BB2
 
-#for ((i=1; i<=5; i+=1)); do
-#if [ "$BB[i]" -lt 10 ]; then
-#    ${BB?}=0${BB?}
-#fi
-#done
+t1=$(grib_get -w count=1 -p stepRange anomalie_massime.grib)
+t2=$(grib_get -w count=2 -p stepRange anomalie_massime.grib)
+NN1=$((t2-t1))
 
+t3=$(grib_get -w count=1 -p stepRange anomalie_minime.grib)
+t4=$(grib_get -w count=2 -p stepRange anomalie_minime.grib)
+NN2=$((t4-t3))
 
-
+printf -v NN1 "%02d" $NN1
+printf -v NN2 "%02d" $NN2
 
 # correction for vertical coordinates, dx and dy
 # for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000240${BB1}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000240${BB2}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}000001${BB3}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}000001${BB4}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}000001${BB5}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
 
 fi
 
@@ -397,26 +426,38 @@ rm anomalie_oggi_tmn_clim10_corrette_Unipol.grib anomalie_domani_tmn_clim10_corr
 # number of bands BB?
 BB1=$(grib_count anomalie_massime.grib)
 BB2=$(grib_count anomalie_minime.grib)
-BB3=$(grib_count precacc_hires.grib)
-BB4=$(grib_count previ_tcorr_saturo_oggi.grib)
-BB5=$(grib_count wind_speed.grib)
+printf -v BB1 "%02d" $BB1
+printf -v BB2 "%02d" $BB2
+
+t1=$(grib_get -w count=1 -p stepRange anomalie_massime.grib)
+t2=$(grib_get -w count=2 -p stepRange anomalie_massime.grib)
+NN1=$((t2-t1))
+
+
+t3=$(grib_get -w count=1 -p stepRange anomalie_minime.grib)
+t4=$(grib_get -w count=2 -p stepRange anomalie_minime.grib)
+NN2=$((t4-t3))
+
+
+printf -v NN1 "%02d" $NN1
+printf -v NN2 "%02d" $NN2
 
 # correction for vertical coordinates, dx and dy
 # for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200240${BB1}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
 #anomalie_massime_finale.grib
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200240${BB2}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
 #anomalie_minime_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}120001${BB3}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
 #precacc_hires_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}120001${BB4}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
 #previ_t_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}120001${BB5}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
 #wind_speed_finale.grib
 
 fi
