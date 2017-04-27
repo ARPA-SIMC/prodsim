@@ -112,7 +112,7 @@ vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
 # first make an identical transformation to grib
 vg6d_transform --trans-type=none \
 	       gdal,6.,35.,20.,48.:$OROGSOURCE \
-	       grib_api:${GRIB_TEMPLATE}:orog_full.grib
+	       grib_api:$SCRIPTS/${GRIB_TEMPLATE}:orog_full.grib
                                        # orog_full.grib 1680x1560
 # compute average, maximum and minimum for each cell
 #for stat in average max min; do
