@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # define domain, orogsource and climsource
-XMIN=7.
+XMIN=6.5
 XMAX=18.5
 YMIN=35.9
 YMAX=47.1
-NX=691 # 11.5*60+1
+NX=721 # 12.*60+1
 NY=673 # 11.2*60+1
 GRIB_TEMPLATE=template.grib
 OROGSOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
