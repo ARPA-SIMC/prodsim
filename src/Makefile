@@ -1,7 +1,7 @@
 # The compiler
 FC = gfortran
 # flags for debugging or for maximum performance, comment as necessary
-FCFLAGS = -g -fbounds-check
+FCFLAGS = -g -fbounds-check -Wall
 #FCFLAGS = -O2
 # flags forall (e.g. look for system .mod files, required in gfortran)
 FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
@@ -10,7 +10,7 @@ FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
 LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -lgrib_api
 
 # List of executables to be built within the package
-PROGRAMS = prodsim_vg6d_tcorr prodsim_create_projgrib prodsim_v7d_fast_read prodsim_scangrib
+PROGRAMS = prodsim_vg6d_tcorr prodsim_create_projgrib prodsim_v7d_fast_read prodsim_scangrib prodsim_expand_field
 
 # "make" builds all
 all: $(PROGRAMS)
