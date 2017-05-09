@@ -2,11 +2,11 @@
 
 # define domain, orogsource and climsource
 XMIN=6.
-XMAX=18.5
+XMAX=19.
 YMIN=35.9
-YMAX=47.1
-NX=751 # 12.5*60+1
-NY=673 # 11.2*60+1
+YMAX=47.6
+NX=781 # 13.*60+1
+NY=703 # 11.7*60+1
 GRIB_TEMPLATE=template.grib
 OROGSOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
 CLIMSOURCE=/autofs/scratch-mod/dcesari/climatology
@@ -131,7 +131,7 @@ vg6d_transform --trans-type=none \
 # replace invalid values (~sea) with zeroes (for both)
     vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
 		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib  #maskbounds sets the constant value to be used
-                                                # orog_hires_average.grib 751x673
+                                                # orog_hires_average.grib 781x703
     rm -f orog_tmp.grib orog_tmp2.grib
 #done
 
@@ -155,10 +155,10 @@ vg6d_transform --trans-type=none \
 #		   --ilon=$XMIN --flon=$XMAX --ilat=$YMIN --flat=$YMAX \
 #		   ${lfile}_1991.grib ${lfile}_1991_cut.grib
 #done
-# prepare corresponding orography (assuming it's compatible with the
-# one used for the climatic dataset)
+## prepare corresponding orography (assuming it's compatible with the
+## one used for the climatic dataset)
 
-# first make an identical transformation to grib
+## first make an identical transformation to grib
 #vg6d_transform --trans-type=none \
 #	       gdal,6.,35.,20.,48.:$OROGSOURCE \
 #	       grib_api:${lfile}_1991_cut.grib:orog_full1.grib
@@ -178,11 +178,11 @@ vg6d_transform --trans-type=none \
 
 # climate orography interpolated over higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib $SCRIPTS/orog_cut.grib grib_api:orog_hires_average.grib:orog_average_cut_hires.grib 
-# orog_average_cut_hires.grib 751x673
+# orog_average_cut_hires.grib 781x703
 
 # nwp orography interpolated over (the same) higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib constz.grib grib_api:orog_hires_average.grib:constz_hires.grib 
-# constz_hires.grib 751x673
+# constz_hires.grib 781x703
 
 # dati clima su grigliato finale
 # vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll
@@ -364,24 +364,29 @@ grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncremen
 # land-sea mask application
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}.grib anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}_buchi.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}.grib anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}_buchi.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}.grib precipitazioni_${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}.grib precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}_buchi.grib precipitazioni_${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}.grib temperatura_${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}.grib temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}_buchi.grib temperatura_${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       vento${gg}${mm}${yyyy}0000${NN5}${BB5}.grib vento_${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       vento${gg}${mm}${yyyy}0000${NN5}${BB5}.grib vento${gg}${mm}${yyyy}0000${NN5}${BB5}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 vento${gg}${mm}${yyyy}0000${NN5}${BB5}_buchi.grib vento_${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
 
 
 fi
@@ -499,24 +504,29 @@ grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncremen
 # land-sea mask application
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}.grib anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}_buchi.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}.grib anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}_buchi.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}.grib precipitazioni_${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}.grib precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}_buchi.grib precipitazioni_${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}.grib temperatura_${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}.grib temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}_buchi.grib temperatura_${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
 
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
-	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
-	       vento${gg}${mm}${yyyy}1200${NN5}${BB5}.grib vento_${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
+	       --maskbounds=0.8,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       vento${gg}${mm}${yyyy}1200${NN5}${BB5}.grib vento${gg}${mm}${yyyy}1200${NN5}${BB5}_buchi.grib
+$SRC/prodsim_expand_field --num-iter=10 vento${gg}${mm}${yyyy}1200${NN5}${BB5}_buchi.grib vento_${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
 
 fi
 
