@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # define domain, orogsource and climsource
-XMIN=6.5
+XMIN=6.
 XMAX=18.5
 YMIN=35.9
 YMAX=47.1
-NX=721 # 12.*60+1
+NX=751 # 12.5*60+1
 NY=673 # 11.2*60+1
 GRIB_TEMPLATE=template.grib
 OROGSOURCE=/autofs/scratch-mod/dcesari/topo/globe_30s/globe.vrt
@@ -28,6 +28,7 @@ PROD_TD="GRIB1,,2,17"
 PROD_PREC="GRIB1,,2,61"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
 PROD_SDI="GRIB1,,201,141"
+PROD_MASK="GRIB1,,2,81"
 # timerange: instantaneous, accumulated, averaged
 TR_IST="GRIB1,0"
 TR_ACC="GRIB1,4"
@@ -66,7 +67,8 @@ arki-query --data \
 	   "reftime: =today 00:00; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
 arki-query --data \
 	   "reftime: =today 00:00; product: $PROD_SDI; timerange: $TR_IST" $DS > sdi.grib
-
+arki-query --data \
+	   "reftime: =today 00:00; product: $PROD_MASK" $DS > mask.grib
 fi
 
 if [ "$hh" -ge 19 ]; then # for run12
@@ -88,7 +90,8 @@ arki-query --data \
 	   "reftime: =today 12:00; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
 arki-query --data \
 	   "reftime: =today 12:00; product: $PROD_SDI; timerange: $TR_IST" $DS > sdi.grib
-
+arki-query --data \
+	   "reftime: =today 12:00; product: $PROD_MASK" $DS > mask.grib
 fi
 
 
@@ -128,7 +131,7 @@ vg6d_transform --trans-type=none \
 # replace invalid values (~sea) with zeroes (for both)
     vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
 		   --maskbounds=0. orog_tmp2.grib orog_hires_average.grib  #maskbounds sets the constant value to be used
-                                                # orog_hires_average.grib 691x673
+                                                # orog_hires_average.grib 751x673
     rm -f orog_tmp.grib orog_tmp2.grib
 #done
 
@@ -145,45 +148,41 @@ vg6d_transform --trans-type=none \
 #    # convert in grib setting correct parameter and unit
 #    # add setmisstonn to fill missing data
 #    cdo -f grb setparam,11.2 -addc,273.15 -setmisstonn $file $lfile.grib
-    
+   
 #    # keep only last decade 1991-2000
 #    grib_copy -w yearOfCentury=91 $lfile.grib ${lfile}_1991.grib
 #    vg6d_transform --trans-type=zoom --sub-type=coord \
 #		   --ilon=$XMIN --flon=$XMAX --ilat=$YMIN --flat=$YMAX \
 #		   ${lfile}_1991.grib ${lfile}_1991_cut.grib
 #done
-
 # prepare corresponding orography (assuming it's compatible with the
 # one used for the climatic dataset)
 
-## first make an identical transformation to grib
+# first make an identical transformation to grib
 #vg6d_transform --trans-type=none \
 #	       gdal,6.,35.,20.,48.:$OROGSOURCE \
 #	       grib_api:${lfile}_1991_cut.grib:orog_full1.grib
-
 ## set to invalid sea points (only for gmrt, to avoid bathymetry)
 #vg6d_transform --trans-type=metamorphosis --sub-type=settoinvalid \
 #	       --maskbounds=-15000.,0. orog_full1.grib orog_full2.grib
 ## replace invalid values (~sea) with zeroes (for both)
 #vg6d_transform --trans-type=metamorphosis --sub-type=setinvalidto \
 #	       --maskbounds=0. orog_full2.grib orog_full3.grib
-
 #vg6d_transform --trans-type=boxinter --sub-type=average --type=regular_ll \
 #	       --output-format=grib_api:${lfile}_1991_cut.grib \
 #	       orog_full3.grib orog_cut.grib
-
-                             # orog_cut.grib 25x25 
+#                             # orog_cut.grib 25x25 
 
 
 ##################################################
 
 # climate orography interpolated over higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib $SCRIPTS/orog_cut.grib grib_api:orog_hires_average.grib:orog_average_cut_hires.grib 
-# orog_average_cut_hires.grib 691x673
+# orog_average_cut_hires.grib 751x673
 
 # nwp orography interpolated over (the same) higher resolution grid
 vg6d_transform --trans-type=inter --sub-type=bilin --output-format=grib_api:orog_hires_average.grib constz.grib grib_api:orog_hires_average.grib:constz_hires.grib 
-# constz_hires.grib 691x673
+# constz_hires.grib 751x673
 
 # dati clima su grigliato finale
 # vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll
@@ -201,6 +200,11 @@ $SRC/prodsim_vg6d_tcorr --tcorr-method=user --tgrad=-0.006 --input-orograhy=orog
 
 done 
 
+# mask interpolation over higher resolution grid
+
+vg6d_transform --trans-type=inter --sub-type=bilin --type=regular_ll \
+	       --output-format=grib_api:orog_average_cut_hires.grib \
+	       mask.grib mask_hires.grib
 
 # forecast interpolation over higher resolution grid
 
@@ -341,18 +345,44 @@ NN2=$((t4-t3))
 printf -v NN1 "%02d" $NN1
 printf -v NN2 "%02d" $NN2
 
+
+
 # correction for vertical coordinates, dx and dy
 # for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
+
+
+# land-sea mask application
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMassime${gg}${mm}${yyyy}0000${NN1}${BB1}.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}0000${NN1}${BB1}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMinime${gg}${mm}${yyyy}0000${NN2}${BB2}.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}0000${NN2}${BB2}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       precipitazioni${gg}${mm}${yyyy}0000${NN3}${BB3}.grib precipitazioni_${gg}${mm}${yyyy}0000${NN3}${BB3}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       temperatura${gg}${mm}${yyyy}0000${NN4}${BB4}.grib temperatura_${gg}${mm}${yyyy}0000${NN4}${BB4}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       vento${gg}${mm}${yyyy}0000${NN5}${BB5}.grib vento_${gg}${mm}${yyyy}0000${NN5}${BB5}.grib
+
 
 fi
 
@@ -442,24 +472,53 @@ NN2=$((t4-t3))
 printf -v NN1 "%02d" $NN1
 printf -v NN2 "%02d" $NN2
 
+
+
+
+
 # correction for vertical coordinates, dx and dy
 # for the temperature anomalies the right indicatorOfParameter (25) has been specified; this allow GDAL to correctly read the temperature without apply a conversion from K to °C
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_massime.grib anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
 #anomalie_massime_finale.grib
 
-grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
+grib_set -s indicatorOfParameter=25,deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 anomalie_minime.grib anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
 #anomalie_minime_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni_${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 precacc_hires.grib precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
 #precacc_hires_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura_${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 previ_tcorr_saturo_oggi.grib temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
 #previ_t_finale.grib
 
-grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento_${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
+grib_set -s deletePV=1,earthIsOblate=1,iDirectionIncrement=17,jDirectionIncrement=17,resolutionAndComponentFlags=128 wind_speed.grib vento${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
 #wind_speed_finale.grib
+
+
+
+# land-sea mask application
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMassime${gg}${mm}${yyyy}1200${NN1}${BB1}.grib anomalieTemperatureMassime_${gg}${mm}${yyyy}1200${NN1}${BB1}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       anomalieTemperatureMinime${gg}${mm}${yyyy}1200${NN2}${BB2}.grib anomalieTemperatureMinime_${gg}${mm}${yyyy}1200${NN2}${BB2}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       precipitazioni${gg}${mm}${yyyy}1200${NN3}${BB3}.grib precipitazioni_${gg}${mm}${yyyy}1200${NN3}${BB3}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       temperatura${gg}${mm}${yyyy}1200${NN4}${BB4}.grib temperatura_${gg}${mm}${yyyy}1200${NN4}${BB4}.grib
+
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.1,1. --coord-file=mask_hires.grib --coord-format=grib_api \
+	       vento${gg}${mm}${yyyy}1200${NN5}${BB5}.grib vento_${gg}${mm}${yyyy}1200${NN5}${BB5}.grib
 
 fi
 
 rm *_previ.grib
+rm -f anomalieTemperatureMassime${gg}${mm}${yyyy}*.grib anomalieTemperatureMinime${gg}${mm}${yyyy}*.grib precipitazioni${gg}${mm}${yyyy}*.grib temperatura${gg}${mm}${yyyy}*.grib vento${gg}${mm}${yyyy}*.grib
