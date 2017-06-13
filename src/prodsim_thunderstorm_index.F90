@@ -100,6 +100,45 @@ END FUNCTION grid_horiz_advection
 !
 !END FUNCTION compute_vert_integral
 
+FUNCTION mask_average(field, mask, nzones)
+REAL,INTENT(in) :: field(:,:)
+INTEGER,INTENT(in) :: mask(:,:)
+INTEGER,INTENT(in) :: nzones
+REAL :: mask_average(nzones)
+
+INTEGER :: i, n, nval
+
+DO i = 1, nzones
+  nval = COUNT(mask == i)
+  IF (nval > 0) THEN
+    mask_average(i) = SUM(field, mask=(mask == i))/nval
+  ELSE
+    mask_average(i) = rmiss
+  ENDIF
+ENDDO
+
+END FUNCTION mask_average
+
+FUNCTION mask_gt_threshold(field, mask, nzones, thr)
+REAL,INTENT(in) :: field(:,:)
+INTEGER,INTENT(in) :: mask(:,:)
+INTEGER,INTENT(in) :: nzones
+REAL,INTENT(in) :: thr
+REAL :: mask_gt_threshold(nzones)
+
+INTEGER :: i, n, nval
+
+DO i = 1, nzones
+  nval = COUNT(mask == i)
+  IF (nval > 0) THEN
+    mask_gt_threshold(i) = REAL(COUNT(field > thr .AND. mask == i))/nval
+  ELSE
+    mask_gt_threshold(i) = rmiss
+  ENDIF
+ENDDO
+
+END FUNCTION mask_gt_threshold
+
 END MODULE misc_computations
 
 ! export LOG4C_PRIORITY=info
@@ -126,14 +165,18 @@ INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay
 TYPE(vol7d_var) :: varbufr
 TYPE(volgrid6d),POINTER :: volgrid_tmp(:), volgrid_tmpr(:)
-TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua
+TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua, volgridmask
 REAL,ALLOCATABLE :: dxm1(:,:), dym1(:,:)
+INTEGER,ALLOCATABLE :: intmask(:,:)
+INTEGER :: nzones
 ! variable indices
 INTEGER :: ip, iu, iv, iw, it, iqv, iqc, iqi, it2, itd2, iu10, iv10, itp
 ! level indices
 INTEGER :: l500 !...
 ! fields to be computed
 REAL,ALLOCATABLE :: vorticity(:,:), tadvection(:,:)
+! spatialised fields
+REAL,ALLOCATABLE :: example_index1(:), example_index2(:)
 
 ! initialise logging
 CALL l4f_launcher(a_name,a_name_force='prodsim_vg6d_tcorr')
@@ -239,6 +282,30 @@ IF (SIZE(volgridua%level) /= SIZE(volgridz%level)) THEN
   CALL raise_fatal_error()
 ENDIF
 
+IF (mask_file /= '') THEN
+  CALL IMPORT(volgrid_tmp, filename=mask_file, decode=.TRUE., dup_mode=0, &
+ time_definition=0, categoryappend='inputmask')
+  IF (SIZE(volgrid_tmp) > 1) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(mask_file))
+    CALL raise_fatal_error()
+  ENDIF
+  volgridmask = volgrid_tmp(1)
+  DEALLOCATE(volgrid_tmp)
+  IF (volgridmask%griddim /= volgridz%griddim) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'grid in '//TRIM(mask_file)//' differs from grid in inputz file')
+    CALL raise_fatal_error()
+  ENDIF
+!  intmask = NINT(volgridmask%voldati(:,:,1,1,1,1)) is this necessary for implicit allocation?
+  WHERE(c_e(volgridmask%voldati(:,:,1,1,1,1)))
+    intmask = NINT(volgridmask%voldati(:,:,1,1,1,1))
+  ELSEWHERE
+    intmask = imiss
+  END WHERE
+ENDIF
+  
+
 IF (ldisplay) THEN
   PRINT*,'input volume >>>>>>>>>>>>>>>>>>>>'
   CALL display(volgridz)
@@ -296,6 +363,14 @@ tadvection = grid_horiz_advection( &
  volgridua%voldati(:,:,l500, 1, 1, iv), &
  volgridua%voldati(:,:,l500, 1, 1, it), &
  dxm1, dym1)
+
+
+! example of spatialization with mask
+IF (ALLOCATED(intmask)) THEN
+  ! implicit allocation
+  example_index1 = mask_average(vorticity, intmask, nzones)
+  example_index2 = mask_gt_threshold(tadvection, intmask, nzones, 0.001)
+ENDIF
 
 ! ...
 
