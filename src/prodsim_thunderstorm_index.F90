@@ -189,6 +189,10 @@ opt = optionparser_new(description_msg= &
  'Preprocess data for computing thunderstorm index from 3d volumes of grib data.', &
  usage_msg='Usage: prodsim_thunderstorm_index [options] inputz inputsurf inputua outputfile')
 
+! for generating mask file:
+! vg6d_transform --trans-type=maskgen --sub-type=poly \
+!  --coord-file=/usr/local/share/libsim/macroaree_er --coord-FORMAT=shp \
+!  orog.grib mask.grib
 CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
  help='mask file for spatial averaging of the results, if empty computations &
  &will be performed point by point')
@@ -303,6 +307,7 @@ IF (mask_file /= '') THEN
   ELSEWHERE
     intmask = imiss
   END WHERE
+  nzones = MAXVAL(intmask, mask=c_e(intmask))
 ENDIF
   
 
