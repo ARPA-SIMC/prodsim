@@ -11,10 +11,13 @@ REAL :: grid_ddx(SIZE(field,1),SIZE(field,2))
 
 INTEGER :: i, j
 
+PRINT*,SHAPE(field),SHAPE(dxm1),SHAPE(grid_ddx)
+
 grid_ddx = 0. ! set to 0 on frame
 DO j = 2, SIZE(dxm1, 2) - 1
-  DO i = 2, SIZE(dxm1, 1) - 1
-    grid_ddx(i,j) = (field(i+1,j)-field(i-1,j))*grid_ddx(i,j)
+   DO i = 2, SIZE(dxm1, 1) - 1
+      PRINT*,i,j
+    grid_ddx(i,j) = (field(i+1,j)-field(i-1,j))*dxm1(i,j)
   ENDDO
 ENDDO
 
@@ -29,7 +32,7 @@ INTEGER :: i, j
 grid_ddy = 0. ! set to 0 on frame
 DO j = 2, SIZE(dym1, 2) - 1
   DO i = 2, SIZE(dym1, 1) - 1
-    grid_ddy(i,j) = (field(i,j+1)-field(i,j-1))*grid_ddy(i,j)
+    grid_ddy(i,j) = (field(i,j+1)-field(i,j-1))*dym1(i,j)
   ENDDO
 ENDDO
 
@@ -42,8 +45,10 @@ REAL,INTENT(out),ALLOCATABLE :: dxm1(:,:), dym1(:,:)
 INTEGER :: i, j
 
 ! autoallocate
-dxm1 = lon
-dym1 = lat
+PRINT*,shape(lon),shape(lat)
+allocate(dxm1(SIZE(lon, 1),SIZE(lon, 2)), dym1(SIZE(lon, 1),SIZE(lon, 2)))
+!dxm1 = lon
+!dym1 = lat
 dxm1 = rmiss
 dym1 = rmiss
 
@@ -256,11 +261,13 @@ CALL rounding(volgrid_tmp, volgrid_tmpr, level=almost_equal_levels, nostatproc=.
 CALL delete(volgrid_tmp)
 volgridsurf = volgrid_tmpr(1)
 DEALLOCATE(volgrid_tmpr)
-IF (volgridsurf%griddim /= volgridz%griddim) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-  CALL raise_fatal_error()
-ENDIF
+!IF (volgridsurf%griddim /= volgridz%griddim) THEN
+CALL display(volgridsurf%griddim)
+CALL display(volgridz%griddim)
+!  CALL l4f_category_log(category, L4F_ERROR, &
+!   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
+!  CALL raise_fatal_error()
+!ENDIF
 
 ! inputua
 CALL getarg(optind+2, input_file)
@@ -275,11 +282,13 @@ IF (SIZE(volgrid_tmp) > 1) THEN
 ENDIF
 volgridua = volgrid_tmp(1)
 DEALLOCATE(volgrid_tmp)
-IF (volgridua%griddim /= volgridz%griddim) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-  CALL raise_fatal_error()
-ENDIF
+!IF (volgridua%griddim /= volgridz%griddim) THEN
+   CALL display(volgridua%griddim)
+   CALL display(volgridz%griddim)
+!  CALL l4f_category_log(category, L4F_ERROR, &
+!   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
+!  CALL raise_fatal_error()
+!ENDIF
 IF (SIZE(volgridua%level) /= SIZE(volgridz%level)) THEN
   CALL l4f_category_log(category, L4F_ERROR, &
    t2c(SIZE(volgridua%level))//'/'//t2c(SIZE(volgridz%level)))
