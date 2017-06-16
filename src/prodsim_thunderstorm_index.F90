@@ -50,8 +50,8 @@ dym1 = rmiss
 
 DO j = 2, SIZE(lon, 2) - 1
   DO i = 2, SIZE(lon, 1) - 1
-    dxm1(i,j) = 1./dist(lon(i-1,j), lon(i+1,j), lat(i-1,j), lat(i+1,j))
-    dym1(i,j) = 1./dist(lon(i,j-1), lon(i,j+1), lat(i,j-1), lat(i,j+1))
+    dxm1(i,j) = 1./dist(lon(i-1,j), lat(i-1,j), lon(i+1,j), lat(i+1,j))
+    dym1(i,j) = 1./dist(lon(i,j-1), lat(i,j-1), lon(i,j+1), lat(i,j+1))
   ENDDO
 ENDDO
 
@@ -62,8 +62,8 @@ DOUBLE PRECISION,INTENT(in) :: lon1, lat1, lon2, lat2
 REAL :: dist
 
 REAL :: x, y
-x = (lon1 - lon2)*COS(((lat1 + lat2)/2.)*degrad)
-y = lat1 - lat2
+x = (lon2 - lon1)*COS(((lat1 + lat2)/2.)*degrad)
+y = lat2 - lat1
 dist = SQRT(x**2 + y**2)*degrad*rearth
 
 END FUNCTION dist
@@ -341,9 +341,6 @@ CALL unproj(volgridz%griddim)
 CALL grid_metric_terms(volgridz%griddim%dim%lon, volgridz%griddim%dim%lat, &
  dxm1, dym1)
 
-PRINT*,MAXVAL(dxm1,mask=c_e(dxm1)),MINVAL(dxm1,mask=c_e(dxm1))
-PRINT*,MAXVAL(dym1,mask=c_e(dym1)),MINVAL(dym1,mask=c_e(dym1))
-
 ! compute variable indices
 ! P B10004, U B11003, V B11004, W B11006, T B12101, QV B13001, QC B13192, QI B13193
 ! T2 B12101, TD2 B12102, U10 B11003, V10 B11004, TP B13011
@@ -385,8 +382,7 @@ IF (c_e(iu) .AND. c_e(iv) .AND. c_e(it)) THEN
   IF (ALLOCATED(intmask)) THEN
 ! implicit allocation
     example_index1 = mask_average(vorticity, intmask, nzones)
-    example_index2 = mask_average(tadvection, intmask, nzones)
-!    example_index2 = mask_gt_threshold(tadvection, intmask, nzones, 0.001)
+    example_index2 = mask_gt_threshold(tadvection, intmask, nzones, 0.001)
   ENDIF
 ELSE
   CALL l4f_category_log(category, L4F_ERROR, &
