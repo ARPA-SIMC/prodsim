@@ -11,12 +11,9 @@ REAL :: grid_ddx(SIZE(field,1),SIZE(field,2))
 
 INTEGER :: i, j
 
-PRINT*,SHAPE(field),SHAPE(dxm1),SHAPE(grid_ddx)
-
 grid_ddx = 0. ! set to 0 on frame
 DO j = 2, SIZE(dxm1, 2) - 1
-   DO i = 2, SIZE(dxm1, 1) - 1
-      PRINT*,i,j
+  DO i = 2, SIZE(dxm1, 1) - 1
     grid_ddx(i,j) = (field(i+1,j)-field(i-1,j))*dxm1(i,j)
   ENDDO
 ENDDO
@@ -44,9 +41,8 @@ REAL,INTENT(out),ALLOCATABLE :: dxm1(:,:), dym1(:,:)
 
 INTEGER :: i, j
 
-! autoallocate
-PRINT*,shape(lon),shape(lat)
-allocate(dxm1(SIZE(lon, 1),SIZE(lon, 2)), dym1(SIZE(lon, 1),SIZE(lon, 2)))
+! autoallocate does not work with -fcheck-bounds
+ALLOCATE(dxm1(SIZE(lon, 1),SIZE(lon, 2)), dym1(SIZE(lon, 1),SIZE(lon, 2)))
 !dxm1 = lon
 !dym1 = lat
 dxm1 = rmiss
@@ -261,13 +257,13 @@ CALL rounding(volgrid_tmp, volgrid_tmpr, level=almost_equal_levels, nostatproc=.
 CALL delete(volgrid_tmp)
 volgridsurf = volgrid_tmpr(1)
 DEALLOCATE(volgrid_tmpr)
-!IF (volgridsurf%griddim /= volgridz%griddim) THEN
-CALL display(volgridsurf%griddim)
-CALL display(volgridz%griddim)
-!  CALL l4f_category_log(category, L4F_ERROR, &
-!   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-!  CALL raise_fatal_error()
-!ENDIF
+IF (volgridsurf%griddim /= volgridz%griddim) THEN
+  CALL display(volgridsurf%griddim)
+  CALL display(volgridz%griddim)
+  CALL l4f_category_log(category, L4F_ERROR, &
+   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
+  CALL raise_fatal_error()
+ENDIF
 
 ! inputua
 CALL getarg(optind+2, input_file)
@@ -282,13 +278,13 @@ IF (SIZE(volgrid_tmp) > 1) THEN
 ENDIF
 volgridua = volgrid_tmp(1)
 DEALLOCATE(volgrid_tmp)
-!IF (volgridua%griddim /= volgridz%griddim) THEN
-   CALL display(volgridua%griddim)
-   CALL display(volgridz%griddim)
-!  CALL l4f_category_log(category, L4F_ERROR, &
-!   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-!  CALL raise_fatal_error()
-!ENDIF
+IF (volgridua%griddim /= volgridz%griddim) THEN
+  CALL display(volgridua%griddim)
+  CALL display(volgridz%griddim)
+  CALL l4f_category_log(category, L4F_ERROR, &
+   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
+  CALL raise_fatal_error()
+ENDIF
 IF (SIZE(volgridua%level) /= SIZE(volgridz%level)) THEN
   CALL l4f_category_log(category, L4F_ERROR, &
    t2c(SIZE(volgridua%level))//'/'//t2c(SIZE(volgridz%level)))
@@ -306,11 +302,14 @@ IF (mask_file /= '') THEN
   volgridmask = volgrid_tmp(1)
   DEALLOCATE(volgrid_tmp)
   IF (volgridmask%griddim /= volgridz%griddim) THEN
+    call display(volgridmask%griddim)
+    call display(volgridz%griddim)
     CALL l4f_category_log(category, L4F_ERROR, &
      'grid in '//TRIM(mask_file)//' differs from grid in inputz file')
     CALL raise_fatal_error()
   ENDIF
-!  intmask = NINT(volgridmask%voldati(:,:,1,1,1,1)) is this necessary for implicit allocation?
+! is this necessary for IMPLICIT allocation?
+  ALLOCATE(intmask(SIZE(volgridmask%voldati,1),SIZE(volgridmask%voldati,2)))
   WHERE(c_e(volgridmask%voldati(:,:,1,1,1,1)))
     intmask = NINT(volgridmask%voldati(:,:,1,1,1,1))
   ELSEWHERE
@@ -342,6 +341,8 @@ CALL unproj(volgridz%griddim)
 CALL grid_metric_terms(volgridz%griddim%dim%lon, volgridz%griddim%dim%lat, &
  dxm1, dym1)
 
+PRINT*,MAXVAL(dxm1,mask=c_e(dxm1)),MINVAL(dxm1,mask=c_e(dxm1))
+PRINT*,MAXVAL(dym1,mask=c_e(dym1)),MINVAL(dym1,mask=c_e(dym1))
 
 ! compute variable indices
 ! P B10004, U B11003, V B11004, W B11006, T B12101, QV B13001, QC B13192, QI B13193
@@ -367,26 +368,40 @@ l500 = 30 ! example
 
 ! examples opf grid computations
 ! remember voldati(x,y,level,time,timerange,var)
-vorticity = grid_vorticity_z( &
- volgridua%voldati(:,:,l500, 1, 1, iu), &
- volgridua%voldati(:,:,l500, 1, 1, iv), &
- dxm1, dym1)
+IF (c_e(iu) .AND. c_e(iv) .AND. c_e(it)) THEN
 
-tadvection = grid_horiz_advection( &
- volgridua%voldati(:,:,l500, 1, 1, iu), &
- volgridua%voldati(:,:,l500, 1, 1, iv), &
- volgridua%voldati(:,:,l500, 1, 1, it), &
- dxm1, dym1)
+  vorticity = grid_vorticity_z( &
+   volgridua%voldati(:,:,l500, 1, 1, iu), &
+   volgridua%voldati(:,:,l500, 1, 1, iv), &
+   dxm1, dym1)
 
+  tadvection = grid_horiz_advection( &
+   volgridua%voldati(:,:,l500, 1, 1, iu), &
+   volgridua%voldati(:,:,l500, 1, 1, iv), &
+   volgridua%voldati(:,:,l500, 1, 1, it), &
+   dxm1, dym1)
 
 ! example of spatialization with mask
-IF (ALLOCATED(intmask)) THEN
-  ! implicit allocation
-  example_index1 = mask_average(vorticity, intmask, nzones)
-  example_index2 = mask_gt_threshold(tadvection, intmask, nzones, 0.001)
+  IF (ALLOCATED(intmask)) THEN
+! implicit allocation
+    example_index1 = mask_average(vorticity, intmask, nzones)
+    example_index2 = mask_average(tadvection, intmask, nzones)
+!    example_index2 = mask_gt_threshold(tadvection, intmask, nzones, 0.001)
+  ENDIF
+ELSE
+  CALL l4f_category_log(category, L4F_ERROR, &
+   'u, v or t missing in upper air data')
+  CALL raise_fatal_error()
 ENDIF
 
-! ...
+IF (ALLOCATED(example_index1)) THEN
+  PRINT*,'Average vorticity'
+  PRINT*,example_index1
+ENDIF
+IF (ALLOCATED(example_index2)) THEN
+  PRINT*,'Advection over threshold'
+  PRINT*,example_index2
+ENDIF
 
 
 ! output
@@ -410,7 +425,7 @@ TYPE(vol7d_var) :: varbufr
 
 vartable_index = imiss
 DO i = 1, SIZE(varlist)
-  varbufr = convert(varlist(j))
+  varbufr = convert(varlist(i))
   IF (varbufr%btable == btable) THEN
     vartable_index = i
     EXIT
