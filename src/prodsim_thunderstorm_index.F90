@@ -62,8 +62,9 @@ DOUBLE PRECISION,INTENT(in) :: lon1, lat1, lon2, lat2
 REAL :: dist
 
 REAL :: x, y
-x = (lon2 - lon1)*COS(((lat1 + lat2)/2.)*degrad)
-y = lat2 - lat1
+
+x = REAL((lon2 - lon1)*COS(((lat1 + lat2)/2.)*degrad))
+y = REAL(lat2 - lat1)
 dist = SQRT(x**2 + y**2)*degrad*rearth
 
 END FUNCTION dist
@@ -107,7 +108,7 @@ INTEGER,INTENT(in) :: mask(:,:)
 INTEGER,INTENT(in) :: nzones
 REAL :: mask_average(nzones)
 
-INTEGER :: i, n, nval
+INTEGER :: i, nval
 
 DO i = 1, nzones
   nval = COUNT(mask == i)
@@ -127,7 +128,7 @@ INTEGER,INTENT(in) :: nzones
 REAL,INTENT(in) :: thr
 REAL :: mask_gt_threshold(nzones)
 
-INTEGER :: i, n, nval
+INTEGER :: i, nval
 
 DO i = 1, nzones
   nval = COUNT(mask == i)
@@ -159,12 +160,11 @@ USE volgrid6d_class
 USE misc_computations
 IMPLICIT NONE
 
-INTEGER :: category, ier, i, j, k
+INTEGER :: category, ier
 CHARACTER(len=512) :: a_name, input_file, output_file, mask_file
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay
-TYPE(vol7d_var) :: varbufr
 TYPE(volgrid6d),POINTER :: volgrid_tmp(:), volgrid_tmpr(:)
 TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua, volgridmask
 REAL,ALLOCATABLE :: dxm1(:,:), dym1(:,:)
@@ -390,6 +390,10 @@ ELSE
   CALL raise_fatal_error()
 ENDIF
 
+! output
+CALL getarg(optind+3, output_file)
+CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
+! output done here...
 IF (ALLOCATED(example_index1)) THEN
   PRINT*,'Average vorticity'
   PRINT*,example_index1
@@ -398,12 +402,6 @@ IF (ALLOCATED(example_index2)) THEN
   PRINT*,'Advection over threshold'
   PRINT*,example_index2
 ENDIF
-
-
-! output
-CALL getarg(optind+3, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
 
 CALL delete(volgridz)
 CALL delete(volgridsurf)
