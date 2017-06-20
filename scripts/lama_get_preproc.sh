@@ -8,20 +8,30 @@ echo "Processing $2"
 #LAMALEV=11,13,15,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40
 #LAMALAY1=1,3,5,7,9,11,13,15,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40
 
-LEVCONT=`seq 17 40`
-ARKILAMALAY=`(for l in $LEVCONT; do echo -n "GRIB1,110,$l "; if [ $l -lt 40 ]; then echo -n "or ";fi; done)`
-ARKILAMALEV=`(for l in $LEVCONT; do echo -n "GRIB1,109,$l "; if [ $l -lt 40 ]; then echo -n "or ";fi; done)`
+# rich levels/layers
+LEVRICH=`seq 17 41`
+ARKILAMALAY=`(for l in $LEVRICH; do echo -n "GRIB1,110,$l "; if [ $l -lt 41 ]; then echo -n "or ";fi; done)`
+ARKILAMALEV=`(for l in $LEVRICH; do echo -n "GRIB1,109,$l "; if [ $l -lt 41 ]; then echo -n "or ";fi; done)`
+
+# poor layers
+LEVPOOR="1 3 5 7 9 11 13 15"
+ARKILAMALAYPOOR=`(for l in $LEVPOOR; do echo -n "GRIB1,110,$l "; if [ $l -lt 15 ]; then echo -n "or ";fi; done)`
 
 ARKIDS="http://arkimet.metarpa:8090/dataset/lamaz"
 
-# all variables at full levels (layers)
+# all variables at rich full levels (layers)
 arki-query --data -o lama_fl.grib \
-	   "Reftime:=$2; level: $ARKILAMALAY" \
+	   "Reftime:=$2; level: $ARKILAMALAY;" \
 	   $ARKIDS
 
-# select only w al half levels
+# w at rich half levels
 arki-query --data -o lama_hl.grib \
 	   "Reftime:=$2; level: $ARKILAMALEV; product:GRIB1,,2,40;" \
+	   $ARKIDS
+
+# U, V, P at poor full levels (layers)
+arki-query --data -o lama_fl_poor.grib \
+	   "Reftime:=$2; level: $ARKILAMALAYPOOR; product:GRIB1,,2,33 or GRIB1,,2,34 or GRIB1,,2,1" \
 	   $ARKIDS
 
 # select T, U, V, P, Td Totprec at ~surface
@@ -31,18 +41,18 @@ arki-query --data -o lama_sl.grib \
 
 # filter the same layers from static dataset
 arki-query --data -o lama_fl_const.grib \
-	   "level: $ARKILAMALAY;" \
+	   "level: $ARKILAMALAYPOOR or $ARKILAMALAY;" \
 	   grib:$3
 
 vg6d_transform --trans-type=vertint --sub-type=linear \
 	       --trans-level-type=105,,105,105 \
 	       lama_hl.grib lama_hl_to_fl.grib
 
-cat lama_hl_to_fl.grib >> lama_fl.grib
-rm -f lama_hl.grib lama_hl_to_fl.grib
-mv lama_fl.grib lama_ua_$1.grib
+cat lama_fl.grib lama_hl_to_fl.grib lama_fl_poor.grib > lama_ua_$1.grib
 mv lama_sl.grib lama_surf_$1.grib
-mv lama_fl_const.grib lama_const_$1.grib
+# force to have the same component flag
+grib_set -s uvRelativeToGrid=0 lama_fl_const.grib lama_const_$1.grib
+rm -f lama_fl.grib lama_hl.grib lama_hl_to_fl.grib lama_fl_poor.grib lama_fl_const.grib
 
 # do we need other upper air variables? B13003=rh, B11005=omega, B12102=td
 #vg6d_transform --output-variable-list=B13003,B11005,B12102 \
