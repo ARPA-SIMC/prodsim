@@ -158,9 +158,10 @@ USE volgrid6d_var_class
 USE vol7d_level_class
 USE volgrid6d_class
 USE misc_computations
+USE termolib
 IMPLICIT NONE
 
-INTEGER :: category, ier
+INTEGER :: category, ier, k
 CHARACTER(len=512) :: a_name, input_file, output_file, mask_file
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
@@ -362,6 +363,12 @@ itp = vartable_index(volgridsurf%var, 'B13011')
 
 ! associate vertical level indices to pseudo pressure levels
 l500 = 30 ! example
+
+IF (c_e(ip)) THEN
+   do k = 1, SIZE(volgridua%level)
+      PRINT*,SUM(volgridua%voldati(:,:,k, 1, 1, ip))/size(volgridua%voldati(:,:,k, 1, 1, ip))
+   ENDDO
+ENDIF
 
 ! examples opf grid computations
 ! remember voldati(x,y,level,time,timerange,var)
