@@ -11,10 +11,14 @@ LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -lgrib_api -lsim_
 
 # List of executables to be built within the package
 PROGRAMS = prodsim_thunderstorm_index prodsim_vg6d_tcorr prodsim_create_projgrib \
-	prodsim_v7d_fast_read prodsim_scangrib prodsim_expand_field
+ prodsim_v7d_fast_read prodsim_scangrib prodsim_expand_field prodsim_cnmc_lightning
 
 # "make" builds all
 all: $(PROGRAMS)
+
+# dependencies through modules
+prodsim_cnmc_lightning.o: cnmc_lightning_mo.o
+prodsim_cnmc_lightning: cnmc_lightning_mo.o
 
 # General rule for building prog from prog.o; $^ (GNU extension) is
 # used in order to list additional object files on which the
