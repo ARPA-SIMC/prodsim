@@ -1,3 +1,20 @@
+! Guidelines for BUFR coding:
+!
+! cnmc_lightning%current
+! B20117 Amplitude of lightning strike, unit A
+! values in interval [-320000,320000]
+! B20119 Lightning discharge polarity, code table:
+! 0 Not defined
+! 1 Positive
+! 2 Negative
+! 3 Missing value
+! Probably redundant if we have signed B20117
+!
+! cnmc_lightning%lighttype ('C' or 'G')
+! B20023 Other weather phenomena, code table:
+! 5 Lightning – cloud to surface
+! 6 Lightning – cloud to cloud
+!
 MODULE cnmc_lightning_mo
 USE kinds
 USE missing_values
