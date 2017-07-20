@@ -33,6 +33,7 @@ TYPE(datetime):: c_sta, c_sto, comptime, filetime
 TYPE(timedelta) :: c_ste, f_ste, validity_interval
 TYPE(arrayof_georef_coord_array) :: poly
 REAL :: comp_frac_valid
+LOGICAL :: center_time
 INTEGER :: i, ds, ierr, t_sec, v_sec
 TYPE(cnmc_lightning_t) :: lightning
 REAL,ALLOCATABLE :: val(:)
@@ -81,6 +82,10 @@ CALL optionparser_add(opt, ' ', 'file-template', file_template, '', help= &
 CALL optionparser_add(opt, ' ', 'file-step', file_step, '0000000000 00:05:00.000', help= &
  'length of time aggregation step in each file &
  &in the format ''YYYYMMDD hh:mm:ss.msc'', it can be simplified up to the form ''D hh''')
+
+CALL optionparser_add(opt, ' ', 'center-time', center_time, help= &
+ 'set the time of output data at the center of the processing interval &
+ &rather than at the end of the interval as is usually done for observations')
 
 ! help options
 CALL optionparser_add_help(opt, 'h', 'help', help='show an help message and exit')
@@ -186,7 +191,12 @@ loop_comptime: DO WHILE(comptime <= c_sto)
 ! check whether we have enough data
   CALL getval(validity_interval, asec=v_sec)
   IF (REAL(v_sec)/REAL(t_sec) >= comp_frac_valid) THEN
-    CALL getval(comptime, simpledate=filetimename)
+    IF (center_time) THEN
+      CALL getval(comptime-c_ste/2, simpledate=filetimename)
+    ELSE
+      CALL getval(comptime, simpledate=filetimename)
+    ENDIF
+    
     DO i = 1, poly%arraysize
       WRITE(10,'(A,'','',I0,'','',I0)')TRIM(filetimename),i,INT(val(i))
     ENDDO
