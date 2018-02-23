@@ -12,18 +12,24 @@ USE grid_class
 USE volgrid6d_var_class
 USE vol7d_level_class
 USE volgrid6d_class
+USE vol7d_class
+USE vol7d_dballe_class
+USE grid_transform_class
 IMPLICIT NONE
 
-INTEGER :: category, ier, i, j, k, gridsize, tindex
+INTEGER :: category, ier, i, j, k, l, gridsize, tindex, hindex
 CHARACTER(len=512) :: a_name, input_orography, output_orography, &
  input_file, output_file
-CHARACTER(len=12) :: tcorr_method
+CHARACTER(len=12) :: tcorr_method, output_orography_format
 REAL :: tgrad
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
-LOGICAL :: version, ldisplay
+LOGICAL :: version, ldisplay, gridded
 TYPE(vol7d_var) :: varbufr
 TYPE(volgrid6d),POINTER  :: volgrid(:),  volgrid_tmp(:), volgrid_io(:), volgrid_oo(:)
+TYPE(vol7d) :: v7d_io, v7d_oo, v7d_t, v7dtmp
+TYPE(vol7d_dballe) :: v7d_dba
+TYPE(transform_def) :: trans
 
 ! innitialise logging
 CALL l4f_launcher(a_name,a_name_force='prodsim_vg6d_tcorr')
@@ -53,7 +59,11 @@ CALL optionparser_add(opt, ' ', 'input-orograhy', input_orography, &
 output_orography = ''
 CALL optionparser_add(opt, ' ', 'output-orograhy', output_orography, &
  help='name of file containing the target orography to which temperature &
- &should be corrected in output, it should be on the same grid as the input data')
+ &should be corrected in output, if gridded, it should be on the same grid &
+ &as the input data, otherwise it should be a set of sparse points with height data')
+CALL optionparser_add(opt, ' ', 'output-orograhy-format', output_orography_format, &
+ default='grib_api', &
+ help='format of the file defining output orography, grib_api or BUFR')
 
 ! display option
 CALL optionparser_add(opt, 'd', 'display', ldisplay, help= &
@@ -118,11 +128,29 @@ ELSE
 ENDIF
 
 IF (output_orography /= '') THEN
-  CALL IMPORT(volgrid_oo, filename=output_orography, decode=.TRUE., dup_mode=0, &
-   time_definition=0, categoryappend='output_oro')
-  IF (SIZE(volgrid_oo) > 1) THEN
+  IF (output_orography_format == 'grib_api') THEN
+    CALL IMPORT(volgrid_oo, filename=output_orography, decode=.TRUE., dup_mode=0, &
+     time_definition=0, categoryappend='output_oro')
+    IF (SIZE(volgrid_oo) > 1) THEN
+      CALL l4f_category_log(category, L4F_ERROR, &
+       'error '//t2c(SIZE(volgrid_oo))//' grids found in '//TRIM(output_orography))
+      CALL raise_fatal_error()
+    ENDIF
+    gridded = .TRUE.
+
+  ELSE IF (output_orography_format == 'BUFR' .OR. output_orography_format == 'CREX') THEN
+    CALL init(v7d_dba, filename=output_orography, FORMAT=output_orography_format, file=.TRUE., &
+     WRITE=.FALSE., categoryappend="output_orography")
+    CALL import(v7d_dba, anaonly=.TRUE.)
+    v7d_oo = v7d_dba%vol7d
+! destroy v7d_dba without deallocating the contents passed to v7d
+    CALL init(v7d_dba%vol7d)
+    CALL delete(v7d_dba)
+    gridded = .FALSE.
+
+  ELSE
     CALL l4f_category_log(category, L4F_ERROR, &
-     'error '//t2c(SIZE(volgrid_oo))//' grids found in '//TRIM(output_orography))
+     'error output orography format '//TRIM(output_orography_format)//' unknown')
     CALL raise_fatal_error()
   ENDIF
 ELSE
@@ -184,36 +212,98 @@ ENDIF
 !  CALL unproj(volgrid(1)%griddim)
 !  PRINT*,ASSOCIATED(volgrid(1)%griddim%dim%lon),ASSOCIATED(volgrid(1)%griddim%dim%lat)
 
-tindex = imiss
-DO j = 1, SIZE(volgrid(1)%var)
-  varbufr = convert(volgrid(1)%var(j))
-  IF (varbufr%btable == 'B12101') THEN
-    tindex = j
-    EXIT
-  ENDIF
-ENDDO
+IF (gridded) THEN
 
-IF (c_e(tindex)) THEN
-  DO k = 1, SIZE(volgrid(1)%timerange)
-    DO j = 1, SIZE(volgrid(1)%time)
-      DO i = 1, SIZE(volgrid(1)%level)
-        IF (volgrid(1)%level(i)%level1 == 1 .OR. &
-         volgrid(1)%level(i)%level1 == 103) THEN ! only fixed height over surface
+  tindex = imiss
+  DO j = 1, SIZE(volgrid(1)%var)
+    varbufr = convert(volgrid(1)%var(j))
+    IF (varbufr%btable == 'B12101') THEN
+      tindex = j
+      EXIT
+    ENDIF
+  ENDDO
+
+  IF (c_e(tindex)) THEN
+    DO k = 1, SIZE(volgrid(1)%timerange)
+      DO j = 1, SIZE(volgrid(1)%time)
+        DO i = 1, SIZE(volgrid(1)%level)
+          IF (volgrid(1)%level(i)%level1 == 1 .OR. &
+           volgrid(1)%level(i)%level1 == 103) THEN ! only fixed height over surface
 ! (x,y,level,time,timerange,var)
-          WHERE(c_e(volgrid(1)%voldati(:,:,i,j,k,tindex)))
-            volgrid(1)%voldati(:,:,i,j,k,tindex) = &
-             volgrid(1)%voldati(:,:,i,j,k,tindex) + &
-             tgrad*(volgrid_oo(1)%voldati(:,:,1,1,1,1) - &
-             volgrid_io(1)%voldati(:,:,1,1,1,1))
-          END WHERE
-        ENDIF
+            WHERE(c_e(volgrid(1)%voldati(:,:,i,j,k,tindex)))
+              volgrid(1)%voldati(:,:,i,j,k,tindex) = &
+               volgrid(1)%voldati(:,:,i,j,k,tindex) + &
+               tgrad*(volgrid_oo(1)%voldati(:,:,1,1,1,1) - &
+               volgrid_io(1)%voldati(:,:,1,1,1,1))
+            END WHERE
+          ENDIF
+        ENDDO
       ENDDO
     ENDDO
-  ENDDO
-ENDIF
+  ENDIF
 
-CALL export(volgrid, output_file)
-CALL delete(volgrid)
+  CALL export(volgrid, output_file)
+  CALL delete(volgrid)
+
+ELSE
+
+  CALL init(trans, trans_type='inter', sub_type='bilin', &
+   categoryappend="transformation")
+
+! convert to real data
+  CALL vol7d_convr(v7d_oo, v7dtmp)
+  CALL delete(v7d_oo)
+  v7d_oo = v7dtmp
+  CALL init(v7dtmp) ! detach it
+  
+! try different variables for station height:
+! height of ground, height of barometer, height or altitude, height
+  hindex = firsttrue(v7d_oo%anavar%r(:)%btable == 'B07030')
+  IF (hindex < 1) hindex = firsttrue(v7d_oo%anavar%r(:)%btable == 'B07031')
+  IF (hindex < 1) hindex = firsttrue(v7d_oo%anavar%r(:)%btable == 'B07002')
+  IF (hindex < 1) hindex = firsttrue(v7d_oo%anavar%r(:)%btable == 'B07007')
+
+  IF (hindex < 1) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error station height not found in '//TRIM(output_orography))
+    CALL raise_fatal_error()
+  ENDIF
+
+  CALL transform(trans, volgrid(1), v7d_t, v7d_oo, &
+   categoryappend="transform t")
+
+  CALL transform(trans, volgrid_io(1), v7d_io, v7d_oo, &
+   categoryappend="transform oro")
+
+! look for temperature in input file interpolated
+  tindex = firsttrue(v7d_t%dativar%r(:)%btable == 'B12101')
+  IF (tindex < 1) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error temperature not found in '//TRIM(input_file)//' after interpolation')
+    CALL raise_fatal_error()
+  ENDIF
+! input orography is in dati (interpolated from grib
+! output orography is in ana (station data)
+  IF (ASSOCIATED(v7d_io%voldatir) .AND. ASSOCIATED(v7d_oo%volanar) .AND. &
+   c_e(tindex)) THEN
+
+    DO l = 1, SIZE(v7d_t%network)
+      DO k = 1, SIZE(v7d_t%timerange)
+        DO j = 1, SIZE(v7d_t%level)
+          DO i = 1, SIZE(v7d_t%time)
+            WHERE(c_e(v7d_oo%volanar(:,1,1)) .AND. &
+             c_e(v7d_io%voldatir(:,1,1,1,1,1)) .AND. c_e(v7d_t%voldatir(:,i,j,k,tindex,l)))
+              v7d_t%voldatir(:,i,j,k,tindex,l) = v7d_t%voldatir(:,i,j,k,tindex,l) + &
+               tgrad*(v7d_oo%volanar(:,1,1)-v7d_io%voldatir(:,1,1,1,1,1))
+            ELSEWHERE
+              v7d_t%voldatir(:,i,j,k,tindex,l) = rmiss
+            END WHERE
+          ENDDO
+        ENDDO
+      ENDDO
+    ENDDO
+  ENDIF
+ENDIF
 !  optind = optind + 1
 !ENDDO
 
