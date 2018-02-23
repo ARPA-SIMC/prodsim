@@ -173,7 +173,7 @@ loop_comptime: DO WHILE(comptime <= c_sto)
     loop_fileline: DO WHILE(.TRUE.)
       READ(11,'(A)',iostat=ierr)line
       IF (ierr /= 0) EXIT loop_fileline
-      CALL lightning%readline(line)
+      CALL lightning%readline(line, datehint=filetime)
       IF (lightning%c_e()) THEN ! process the datum
         DO i = 1, poly%arraysize
           IF (inside(lightning%coord, poly%array(i))) THEN

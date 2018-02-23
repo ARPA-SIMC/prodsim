@@ -38,18 +38,22 @@ PUBLIC cnmc_lightning_t
 
 CONTAINS
 
-SUBROUTINE lightning_readline(this, buffer)
+SUBROUTINE lightning_readline(this, buffer, datehint)
 CLASS(cnmc_lightning_t),INTENT(out) :: this
-CHARACTER(len=*) :: buffer
+CHARACTER(len=*),INTENT(in) :: buffer
+TYPE(datetime),INTENT(in),OPTIONAL :: datehint
 
 TYPE(cnmc_lightning_t) :: lbuff
 INTEGER :: ierr
 REAL(kind=fp_d) :: lon, lat
 
 ! initialise local object
-lbuff%time = datetime_new(isodate=buffer(:19))
-READ(buffer, '(20X,F7.0,1X,F8.0,1X,F7.0,1X,A,1X,A)', iostat=ierr) lat, lon, &
- lbuff%current, lbuff%unit, lbuff%lighttype
+IF (LEN_TRIM(buffer) >= 50) THEN ! probably new format with isodate
+  lbuff%time = datetime_new(isodate=buffer(:19))
+  READ(buffer, '(20X,F7.0,1X,F8.0,1X,F7.0,1X,A,1X,A)', iostat=ierr) lat, lon, &
+   lbuff%current, lbuff%unit, lbuff%lighttype
+ELSE ! probably old format with different date formats
+ENDIF
 
 IF (ierr == 0 .AND. c_e(lbuff%time)) THEN
   lbuff%coord = georef_coord_new(x=lon, y=lat)
