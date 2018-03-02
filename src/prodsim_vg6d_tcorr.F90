@@ -303,6 +303,14 @@ ELSE
       ENDDO
     ENDDO
   ENDIF
+
+  CALL init(v7d_dba, filename=output_file, FORMAT=output_orography_format, &
+   file=.TRUE., WRITE=.TRUE., wipe=.TRUE., categoryappend="export", &
+   TEMPLATE='generic')
+  v7d_dba%vol7d = v7d_t
+  CALL export(v7d_dba)
+  CALL delete(v7d_dba)
+
 ENDIF
 !  optind = optind + 1
 !ENDDO
