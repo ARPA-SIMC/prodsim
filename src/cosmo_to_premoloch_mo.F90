@@ -31,6 +31,22 @@ REAL(kind=wp),ALLOCATABLE :: soiltype(:), landfrac(:)
 CONTAINS
 
 
+SUBROUTINE write_msg(gid, fid, hyblayer)
+INTEGER,INTENT(inout) :: gid, fid
+LOGICAL,INTENT(in),OPTIONAL :: hyblayer
+
+IF (PRESENT(hyblayer)) THEN
+  IF (hyblayer) THEN
+    CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
+    CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
+  ENDIF
+ENDIF
+CALL grib_set(gid, 'subCentre', 103)
+CALL grib_write(gid, fid)
+
+END SUBROUTINE write_msg
+
+
 FUNCTION check_grid(gid)
 INTEGER,INTENT(inout) :: gid
 LOGICAL :: check_grid
@@ -65,7 +81,9 @@ CALL grib_get(gid, 'values', field)
 
 END SUBROUTINE store_field
 
+! useful grib_ls
 !grib_ls -p count,discipline,parameterCategory,parameterNumber,shortName,typeOfLevel
+!grib_ls -p count,discipline,parameterCategory,parameterNumber,shortName,typeOfFirstFixedSurface,scaleFactorOfFirstFixedSurface,scaledValueOfFirstFixedSurface,typeOfSecondFixedSurface,scaleFactorOfSecondFixedSurface,scaledValueOfSecondFixedSurface
 
 ! convert soil moisture
 ! From column-integrated soil moisture (kg m-2)
@@ -99,9 +117,6 @@ ENDDO
 
 ! from layer to level
 CALL grib_set(gid, 'typeOfFirstFixedSurface', 106)
-CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
-CALL grib_set_missing(gid, 'scaleFactorOfFirstFixedSurface')
-CALL grib_set_missing(gid, 'scaledValueOfFirstFixedSurface')
 IF (f1 == f2) THEN ! simple case
   IF (MOD(v1+v2, 2) == 0) THEN
     CALL grib_set(gid, 'scaleFactorOfFirstFixedSurface', f1)
@@ -115,6 +130,9 @@ ELSE
   CALL grib_set(gid, 'scaledValueOfFirstFixedSurface', &
    NINT((bl+tl)/2.0_wp*10.0_wp**(MAX(f1,f2)+1)))
 ENDIF
+CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
+CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
+CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
 
 CALL grib_set(gid, 'values', rel_moist)
 
@@ -170,7 +188,7 @@ DO WHILE(.TRUE.)
           CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
           CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
           CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
 !        CASE(4) ! geopotential
         END SELECT
       END SELECT
@@ -181,7 +199,7 @@ DO WHILE(.TRUE.)
         CASE(0) ! land fraction
           CALL store_field(gid, landfrac)
 !        CALL grib_set(gid, 'parameterNumber', 218)
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
         END SELECT
       CASE(3)
         SELECT CASE(n)
@@ -225,30 +243,28 @@ DO WHILE(.TRUE.)
       CASE(0) ! temperature
         SELECT CASE(n)
         CASE(0) ! temperature
-          CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
-          CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
       CASE(1) ! moisture
         SELECT CASE(n)
-        CASE(0, 22, 82) ! q, qc, qi???
-          CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
-          CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
-          CALL grib_write(gid, ofid)
+        CASE(0) ! q
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
+        CASE(22) ! qc?
+          CALL grib_set(gid, 'parameterNumber', 83)
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
+        CASE(82) ! qi?
+          CALL grib_set(gid, 'parameterNumber', 84)
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
       CASE(2) ! momentum
         SELECT CASE(n)
         CASE(2,3) ! u, v
-          CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
-          CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
       CASE(3) ! mass
         SELECT CASE(n)
         CASE(0) ! p
-          CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
-          CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
       END SELECT
     END SELECT
@@ -269,31 +285,37 @@ DO WHILE(.TRUE.)
             CALL grib_set(clgid, 'discipline', 10)
             CALL grib_set(clgid, 'parameterCategory', 3)
             CALL grib_set(clgid, 'parameterNumber', 0)
-            CALL grib_write(clgid, ofid)
+! pretend to be first deep soil level (warning depth may change!)
+            CALL grib_set(clgid, 'scaleFactorOfFirstFixedSurface', 3)
+            CALL grib_set(clgid, 'scaledValueOfFirstFixedSurface', 5)
+            CALL write_msg(clgid, ofid)
 ! duplicate to skin temperature
             CALL grib_set(clgid, 'discipline', 0)
             CALL grib_set(clgid, 'parameterCategory', 0)
             CALL grib_set(clgid, 'parameterNumber', 0)
             CALL grib_set(clgid, 'typeOfFirstFixedSurface', 1)
-            CALL grib_set_missing(gid, 'scaleFactorOfFirstFixedSurface')
-            CALL grib_set_missing(gid, 'scaledValueOfFirstFixedSurface')
-            CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
-            CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
-            CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
-            CALL grib_write(clgid, ofid)
+            CALL grib_set_missing(clgid, 'scaleFactorOfFirstFixedSurface')
+            CALL grib_set_missing(clgid, 'scaledValueOfFirstFixedSurface')
+            CALL write_msg(clgid, ofid)
             CALL grib_release(clgid)
+          ELSE ! write only deeper levels
+            CALL grib_set(gid, 'discipline', 2)
+            CALL grib_set(gid, 'parameterCategory', 0)
+            CALL grib_set(gid, 'parameterNumber', 2)
+            CALL write_msg(gid, ofid)
           ENDIF
-
-!        CALL grib_set(gid, 'discipline', 2)
-          CALL grib_set(gid, 'parameterCategory', 0)
-          CALL grib_set(gid, 'parameterNumber', 2)
-          CALL grib_write(gid, ofid)
-        CASE(20) ! soil moisture (22=ice)
+        CASE(20) ! soil moisture
           CALL  compute_rel_moist(gid)
 !        CALL grib_set(gid, 'discipline', 2)
           CALL grib_set(gid, 'parameterCategory', 0)
-          CALL grib_set(gid, 'parameterNumber', 9)
-          CALL grib_write(gid, ofid)
+          CALL grib_set(gid, 'parameterNumber', 198) ! local
+          CALL write_msg(gid, ofid)
+        CASE(22) ! soil ice
+          CALL  compute_rel_moist(gid)
+!        CALL grib_set(gid, 'discipline', 2)
+          CALL grib_set(gid, 'parameterCategory', 0)
+          CALL grib_set(gid, 'parameterNumber', 199) ! local
+          CALL write_msg(gid, ofid)
         END SELECT
       END SELECT
     END SELECT
@@ -306,12 +328,12 @@ DO WHILE(.TRUE.)
         SELECT CASE(n)
         CASE(60) ! snow depth
           CALL grib_set(gid, 'parameterNumber', 13) ! ~
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
         END SELECT
       CASE(3) ! mass
         SELECT CASE(n)
         CASE(0) ! pressure
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
         END SELECT
       END SELECT
     CASE(10) ! ocean
@@ -319,10 +341,10 @@ DO WHILE(.TRUE.)
       CASE(2) ! ice
         SELECT CASE(n)
         CASE(1) ! ice thickness
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
           CALL compute_ice_cover(gid)
           CALL grib_set(gid, 'parameterNumber', 0)
-          CALL grib_write(gid, ofid)
+          CALL write_msg(gid, ofid)
         END SELECT
       END SELECT
     END SELECT
