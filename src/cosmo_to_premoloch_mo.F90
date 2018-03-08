@@ -31,14 +31,19 @@ REAL(kind=wp),ALLOCATABLE :: soiltype(:), landfrac(:)
 CONTAINS
 
 
-SUBROUTINE write_msg(gid, fid, hyblayer)
+SUBROUTINE write_msg(gid, fid, hyblayer, hyblevel)
 INTEGER,INTENT(inout) :: gid, fid
-LOGICAL,INTENT(in),OPTIONAL :: hyblayer
+LOGICAL,INTENT(in),OPTIONAL :: hyblayer, hyblevel
 
 IF (PRESENT(hyblayer)) THEN
   IF (hyblayer) THEN
     CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
     CALL grib_set(gid, 'typeOfSecondFixedSurface', 105)
+  ENDIF
+ENDIF
+IF (PRESENT(hyblevel)) THEN
+  IF (hyblevel) THEN
+    CALL grib_set(gid, 'typeOfFirstFixedSurface', 105)
   ENDIF
 ENDIF
 CALL grib_set(gid, 'subCentre', 103)
@@ -116,6 +121,11 @@ DO ij = 1, ni*nj
 ENDDO
 
 ! from layer to level
+! because of grib_api behavior, second surface has to be set to
+! missing before setting the values of the first surface
+CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
+CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
+CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
 CALL grib_set(gid, 'typeOfFirstFixedSurface', 106)
 IF (f1 == f2) THEN ! simple case
   IF (MOD(v1+v2, 2) == 0) THEN
@@ -130,9 +140,6 @@ ELSE
   CALL grib_set(gid, 'scaledValueOfFirstFixedSurface', &
    NINT((bl+tl)/2.0_wp*10.0_wp**(MAX(f1,f2)+1)))
 ENDIF
-CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
-CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
-CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
 
 CALL grib_set(gid, 'values', rel_moist)
 
@@ -269,7 +276,18 @@ DO WHILE(.TRUE.)
       END SELECT
     END SELECT
 
-!  ELSE IF (l1 == 150 .AND. l2 == 255) THEN ! upper air half levels
+  ELSE IF (l1 == 150 .AND. l2 == 255) THEN ! upper air half levels
+    SELECT CASE(d)
+    CASE(0) ! atmosphere
+      SELECT CASE(c)
+      CASE(2) ! momentum
+        SELECT CASE(n)
+        CASE(9) ! w
+          CALL write_msg(gid, ofid, hyblevel=.TRUE.)
+        END SELECT
+      END SELECT
+    END SELECT
+
   ELSE IF (l1 == 106) THEN ! soil levels
     SELECT CASE(d)
     CASE(2) ! surface
@@ -282,13 +300,13 @@ DO WHILE(.TRUE.)
           IF (v1 == 0) THEN ! assume l2 == missing, surface
 ! duplicate to sea temperature
             CALL grib_clone(gid, clgid)
-            CALL grib_set(clgid, 'discipline', 10)
-            CALL grib_set(clgid, 'parameterCategory', 3)
-            CALL grib_set(clgid, 'parameterNumber', 0)
+!            CALL grib_set(clgid, 'discipline', 10)
+!            CALL grib_set(clgid, 'parameterCategory', 3)
+!            CALL grib_set(clgid, 'parameterNumber', 0)
 ! pretend to be first deep soil level (warning depth may change!)
-            CALL grib_set(clgid, 'scaleFactorOfFirstFixedSurface', 3)
-            CALL grib_set(clgid, 'scaledValueOfFirstFixedSurface', 5)
-            CALL write_msg(clgid, ofid)
+!            CALL grib_set(clgid, 'scaleFactorOfFirstFixedSurface', 3)
+!            CALL grib_set(clgid, 'scaledValueOfFirstFixedSurface', 5)
+!            CALL write_msg(clgid, ofid)
 ! duplicate to skin temperature
             CALL grib_set(clgid, 'discipline', 0)
             CALL grib_set(clgid, 'parameterCategory', 0)
@@ -305,10 +323,10 @@ DO WHILE(.TRUE.)
             CALL write_msg(gid, ofid)
           ENDIF
         CASE(20) ! soil moisture
-          CALL  compute_rel_moist(gid)
-!        CALL grib_set(gid, 'discipline', 2)
           CALL grib_set(gid, 'parameterCategory', 0)
           CALL grib_set(gid, 'parameterNumber', 198) ! local
+          CALL  compute_rel_moist(gid)
+!        CALL grib_set(gid, 'discipline', 2)
           CALL write_msg(gid, ofid)
         CASE(22) ! soil ice
           CALL  compute_rel_moist(gid)
