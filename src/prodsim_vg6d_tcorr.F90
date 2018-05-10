@@ -268,6 +268,8 @@ ELSE
      'error station height not found in '//TRIM(output_orography))
     CALL raise_fatal_error()
   ENDIF
+  CALL l4f_category_log(category, L4F_INFO, 'output orography found in variable '// &
+   TRIM(v7d_oo%anavar%r(hindex)%btable)//' at position '//t2c(hindex))
 
   CALL transform(trans, volgrid(1), v7d_t, v7d_oo, &
    categoryappend="transform t")
@@ -282,7 +284,7 @@ ELSE
      'error temperature not found in '//TRIM(input_file)//' after interpolation')
     CALL raise_fatal_error()
   ENDIF
-! input orography is in dati (interpolated from grib
+! input orography is in dati, interpolated from grib, variable still unchecked
 ! output orography is in ana (station data)
   IF (ASSOCIATED(v7d_io%voldatir) .AND. ASSOCIATED(v7d_oo%volanar) .AND. &
    c_e(tindex)) THEN
@@ -291,10 +293,10 @@ ELSE
       DO k = 1, SIZE(v7d_t%timerange)
         DO j = 1, SIZE(v7d_t%level)
           DO i = 1, SIZE(v7d_t%time)
-            WHERE(c_e(v7d_oo%volanar(:,1,1)) .AND. &
+            WHERE(c_e(v7d_oo%volanar(:,hindex,1)) .AND. &
              c_e(v7d_io%voldatir(:,1,1,1,1,1)) .AND. c_e(v7d_t%voldatir(:,i,j,k,tindex,l)))
               v7d_t%voldatir(:,i,j,k,tindex,l) = v7d_t%voldatir(:,i,j,k,tindex,l) + &
-               tgrad*(v7d_oo%volanar(:,1,1)-v7d_io%voldatir(:,1,1,1,1,1))
+               tgrad*(v7d_oo%volanar(:,hindex,1)-v7d_io%voldatir(:,1,1,1,1,1))
             ELSEWHERE
               v7d_t%voldatir(:,i,j,k,tindex,l) = rmiss
             END WHERE
