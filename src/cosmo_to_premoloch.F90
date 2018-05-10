@@ -10,15 +10,15 @@ CHARACTER(len=512) :: input_file, output_file
 INTEGER :: ifid, ofid, i, ier
 
 DO i = 2, iargc()
-! open output file
-  WRITE(output_file,'(''cosmo_to_premoloch'',I3.3,''.grib'')')i-2
+! open output file grib_002
+  WRITE(output_file,'(''grib_'',I3.3)')i-1
   CALL grib_open_file(ofid, output_file, 'w', ier)
   IF (ier /= GRIB_SUCCESS) THEN
     PRINT*,'Error opening output file ',TRIM(output_file)
     STOP
   ENDIF
 
-  IF (i == 2) THEN ! process constant data first
+  IF (i == 2) THEN ! digression for processing constant data
     CALL getarg(1, input_file)
     CALL grib_open_file(ifid, input_file, 'r', ier)
     IF (ier /= GRIB_SUCCESS) THEN
