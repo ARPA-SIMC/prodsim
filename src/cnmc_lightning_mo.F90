@@ -44,7 +44,7 @@ CHARACTER(len=*),INTENT(in) :: buffer
 TYPE(datetime),INTENT(in),OPTIONAL :: datehint
 
 TYPE(cnmc_lightning_t) :: lbuff
-INTEGER :: ierr
+INTEGER :: ierr, dtfrag(6)
 REAL(kind=fp_d) :: lon, lat
 
 ! initialise local object
@@ -53,6 +53,11 @@ IF (LEN_TRIM(buffer) >= 50) THEN ! probably new format with isodate
   READ(buffer, '(20X,F7.0,1X,F8.0,1X,F7.0,1X,A,1X,A)', iostat=ierr) lat, lon, &
    lbuff%current, lbuff%unit, lbuff%lighttype
 ELSE ! probably old format with different date formats
+  READ(buffer, '(6(I2,1X))', iostat=ierr) dtfrag
+  lbuff%time = datetime_new(year=dtfrag(3)+2000, month=dtfrag(1), day=dtfrag(2), &
+   hour=dtfrag(4), minute=dtfrag(5), msec=dtfrag(6)*1000)
+  READ(buffer, '(18X,F7.0,1X,F8.0,1X,F7.0,1X,A,1X,A)', iostat=ierr) lat, lon, &
+   lbuff%current, lbuff%unit, lbuff%lighttype
 ENDIF
 
 IF (ierr == 0 .AND. c_e(lbuff%time)) THEN
