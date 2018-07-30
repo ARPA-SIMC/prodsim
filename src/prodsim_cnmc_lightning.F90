@@ -18,6 +18,7 @@ USE missing_values
 USE optionparser_class
 USE georef_coord_class
 USE datetime_class
+USE char_utilities
 USE cnmc_lightning_mo
 IMPLICIT NONE
 
@@ -36,7 +37,8 @@ REAL :: comp_frac_valid
 LOGICAL :: center_time
 INTEGER :: i, ds, ierr, t_sec, v_sec
 TYPE(cnmc_lightning_t) :: lightning
-REAL,ALLOCATABLE :: val(:)
+INTEGER,ALLOCATABLE :: lcount(:)
+REAL,ALLOCATABLE :: lmax(:)
 
 
 ! initialise logging
@@ -154,10 +156,11 @@ ENDIF
 OPEN(10, file=output_file)
 
 CALL getval(c_ste, asec=t_sec)
-ALLOCATE(val(poly%arraysize))
+ALLOCATE(lcount(poly%arraysize), lmax(poly%arraysize))
 comptime = c_sta + c_ste
 loop_comptime: DO WHILE(comptime <= c_sto)
-  val(:) = 0.
+  lcount(:) = 0
+  lmax(:) = 0.
   validity_interval = timedelta_0
   filetime = comptime - c_ste + f_ste
   loop_filetime: DO WHILE(filetime <= comptime)
@@ -177,7 +180,8 @@ loop_comptime: DO WHILE(comptime <= c_sto)
       IF (lightning%c_e()) THEN ! process the datum
         DO i = 1, poly%arraysize
           IF (inside(lightning%coord, poly%array(i))) THEN
-            val(i) = val(i) + 1.
+            lcount(i) = lcount(i) + 1
+            lmax(i) = MAX(lmax(i), ABS(lightning%current))
             EXIT
           ENDIF
         ENDDO
@@ -198,7 +202,8 @@ loop_comptime: DO WHILE(comptime <= c_sto)
     ENDIF
     
     DO i = 1, poly%arraysize
-      WRITE(10,'(A,'','',I0,'','',I0)')TRIM(filetimename),i,INT(val(i))
+      WRITE(10,'(A,'','',I0,'','',A,'','',A)')TRIM(filetimename),i, &
+       t2c(lcount(i)),t2c(lmax(i))
     ENDDO
   ENDIF
 ! increment counter
