@@ -21,10 +21,12 @@ INTEGER :: category, ier, i, j, k, l, gridsize, tindex, hindex
 CHARACTER(len=512) :: a_name, input_orography, output_orography, &
  input_file, output_file
 CHARACTER(len=12) :: tcorr_method, output_orography_format
+CHARACTER(len=160) :: trans_type
 REAL :: tgrad
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay, gridded
+INTEGER,POINTER :: w_s(:), w_e(:)
 TYPE(vol7d_var) :: varbufr
 TYPE(volgrid6d),POINTER  :: volgrid(:),  volgrid_tmp(:), volgrid_io(:), volgrid_oo(:)
 TYPE(vol7d) :: v7d_io, v7d_oo, v7d_t, v7dtmp
@@ -64,6 +66,10 @@ CALL optionparser_add(opt, ' ', 'output-orograhy', output_orography, &
 CALL optionparser_add(opt, ' ', 'output-orograhy-format', output_orography_format, &
  default='grib_api', &
  help='format of the file defining output orography, grib_api or BUFR')
+CALL optionparser_add(opt, ' ', 'trans-type', trans_type, &
+ default='inter:bilin', help= &
+ 'transformation type (grid to sparse points), in the case of output on &
+ &sparse points, in the form ''trans-type:subtype''')
 
 ! display option
 CALL optionparser_add(opt, 'd', 'display', ldisplay, help= &
@@ -247,8 +253,20 @@ IF (gridded) THEN
 
 ELSE
 
-  CALL init(trans, trans_type='inter', sub_type='bilin', &
-   categoryappend="transformation")
+  IF (trans_type == '') THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error, --trans-type must be specified for output on sparse points')
+    CALL raise_fatal_error()
+  ENDIF
+  i = word_split(trans_type, w_s, w_e, ':')
+  IF (i /= 2) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error, syntax '//TRIM(trans_type)//' for --trans-type not correct')
+    CALL raise_fatal_error()
+  ENDIF
+
+  CALL init(trans, trans_type=trans_type(w_s(1):w_e(1)), &
+   sub_type=trans_type(w_s(2):w_e(2)), categoryappend="transformation")
 
 ! convert to real data
   CALL vol7d_convr(v7d_oo, v7dtmp)
