@@ -89,7 +89,6 @@ CALL check(nf90_inquire_dimension(ncid, id_mesh, len=dim_mesh))
 !call check(nf90_inq_varid(ncid, "lat", varid_lat))
 CALL check(nf90_inq_varid(ncid, "geo_dim", varid_geo))
 CALL check(nf90_inq_varid(ncid, "mesh_dim", varid_mesh))
-!CALL check(nf90_inquire_attribute(ncid, NF90_GLOBAL, "RADARS_NAME", attnum=radname_id))
 
 ! get radar name as attribute andidentify it
 CALL check(nf90_get_att(ncid, NF90_GLOBAL, "RADARS_NAME", radname))
@@ -219,10 +218,10 @@ DO i = 1, dim_time
   ENDIF
 ENDDO
 
-PRINT*,'n. dati mancanti in volgrid',COUNT(.NOT.c_e(vol_nc%voldati))
-PRINT*,'n. dati validi in volgrid',COUNT(c_e(vol_nc%voldati))
-PRINT*,'n. dati validi e con 45dbZ in volgrid',COUNT(c_e(vol_nc%voldati) .AND. vol_nc%voldati /= hmiss)
-PRINT*,'n. dati validi e senza 45dbZ in volgrid',COUNT(c_e(vol_nc%voldati) .AND. vol_nc%voldati == hmiss)
+!PRINT*,'n. dati mancanti in volgrid',COUNT(.NOT.c_e(vol_nc%voldati))
+!PRINT*,'n. dati validi in volgrid',COUNT(c_e(vol_nc%voldati))
+!PRINT*,'n. dati validi e con 45dbZ in volgrid',COUNT(c_e(vol_nc%voldati) .AND. vol_nc%voldati /= hmiss)
+!PRINT*,'n. dati validi e senza 45dbZ in volgrid',COUNT(c_e(vol_nc%voldati) .AND. vol_nc%voldati == hmiss)
 
 CALL check(nf90_close(ncid))
 
