@@ -170,10 +170,8 @@ IF (.NOT.ASSOCIATED(vol_nc%voldati)) THEN
    xmin=geo_lim(2), xmax=geo_lim(4), ymin=geo_lim(1), ymax=geo_lim(3), &
    component_flag=0, categoryappend="generated")
   CALL init(vol_nc, griddim_nc, 1)
-
   CALL volgrid6d_alloc(vol_nc, ntime=SIZE(timelist), nlevel=1, ntimerange=1, &
    nvar=1, ini=.TRUE.)
-
   CALL volgrid6d_alloc_vol(vol_nc, ini=.TRUE., inivol=.TRUE., decode=.TRUE.)
   vol_nc%time(:) = timelist(:)
   vol_nc%timerange(1) = vol7d_timerange_new(254, 0, 0)
@@ -186,9 +184,11 @@ IF (.NOT.ASSOCIATED(vol_nc%voldati)) THEN
 
 ELSE
   ! volume already allocated, just check grid
-  IF (dim_lon /= griddim_nc%dim%nx .OR. dim_lat /= griddim_nc%dim%ny) THEN
+  IF (dim_lon /= vol_nc%griddim%dim%nx .OR. dim_lat /= vol_nc%griddim%dim%ny) THEN
     CALL l4f_category_log(category,L4F_ERROR,'netcdf file '// &
      TRIM(name_nc)//' has a grid different from that of previous file(s)')
+    CALL l4f_category_log(category,L4F_ERROR,t2c(dim_lon)//','//t2c(dim_lat)// &
+     '/'//t2c(vol_nc%griddim%dim%nx)//','//t2c(vol_nc%griddim%dim%ny))
     CALL raise_fatal_error()
   ENDIF
 ENDIF
@@ -196,7 +196,7 @@ ENDIF
 DO i = 1, dim_time
   CALL check(nf90_get_var(ncid, varid_time, delta_t, (/i/),(/i/)))
   vtime = rtime + ts*timedelta_new(hour=delta_t(1)) + timestep/2
-  vtime = vtime + MOD(vtime, timestep) ! round to step (tipically 1h)
+  vtime = vtime - MOD(vtime, timestep) ! round to step (tipically 1h)
   j = firsttrue(vtime == vol_nc%time)
   PRINT*,'Assigned time:',to_char(vtime),' found at pos.',j
   IF (j > 0) THEN

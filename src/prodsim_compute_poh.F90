@@ -55,7 +55,7 @@ category = l4f_category_get(a_name//".main")
 CALL init(tmpcoord, 10.508333D0, 44.791667D0)
 radarlist(1) = radar_desc(coord=tmpcoord, radius=125000.D0, name='RAD:IYai,PLC:itgat')
 CALL init(tmpcoord, 11.623611D0, 44.654722D0)
-radarlist(2) = radar_desc(coord=tmpcoord, radius=125000.D0, name='RAD:IY46,PLC:itspc')
+radarlist(2) = radar_desc(coord=tmpcoord, radius=125000.D0, name='WMO:16144,RAD:IY46,PLC:itspc')
 CALL init(vol_iso0)
 CALL init(vol_etop)
 
