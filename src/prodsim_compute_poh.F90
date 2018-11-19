@@ -18,6 +18,8 @@ USE err_handling
 USE optionparser_class
 USE datetime_class
 USE geo_coord_class
+USE grid_id_class
+USE gridinfo_class
 USE volgrid6d_class
 USE grid_transform_class
 USE simc_radar_mo
@@ -35,11 +37,16 @@ TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 INTEGER :: iargc
 CHARACTER(len=23) :: start_date, end_date, comp_step
-TYPE(timedelta) :: c_i
+TYPE(datetime) :: s_d, e_d, vt
+TYPE(timedelta) :: c_s
 LOGICAL :: ldisplay, version
 CHARACTER(len=512):: input_file, output_template, output_file
 
 INTEGER :: i
+TYPE(grid_file_id) :: input_file_id
+TYPE(grid_id) :: input_grid
+TYPE(gridinfo_def) :: gridinfol
+TYPE(arrayof_gridinfo) :: gridinfotmp
 TYPE(volgrid6d),POINTER :: voltmp(:)
 TYPE(volgrid6d) :: vol_iso0, vol_etop, vol_iso0_rad
 TYPE(transform_def) :: mod2rad
@@ -116,12 +123,62 @@ ELSE IF (i < 2) THEN
   CALL raise_fatal_error()
 ENDIF
 
+IF (start_date /= '') THEN
+  s_d = datetime_new(isodate=start_date)
+  IF (.NOT. c_e(s_d)) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error in command-line arguments, wrong syntax for --start-date: ' &
+     //start_date)
+    CALL raise_fatal_error()
+  ENDIF
+ELSE
+  s_d = datetime_miss
+ENDIF
+
+IF (end_date /= '') THEN
+  e_d = datetime_new(isodate=end_date)
+  IF (.NOT. c_e(e_d)) THEN
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'error in command-line arguments, wrong syntax for --end-date: ' &
+     //end_date)
+    CALL raise_fatal_error()
+  ENDIF
+ELSE
+  e_d = datetime_miss
+ENDIF
+
 CALL getarg(optind, input_file)
 
 ! read 0deg isotherm grib file
 CALL l4f_category_log(category,L4F_INFO,'Importing grib file '//TRIM(input_file))
+! import into a gridinfo filtering undesired time level (code from gridinfo_class)
+!CALL init(gridinfotmp)
+input_file_id = grid_file_id_new(input_file, 'r')
+DO WHILE(.TRUE.)
+  input_grid = grid_id_new(input_file_id)
+  IF (.NOT. c_e(input_grid)) EXIT
+
+  CALL init(gridinfol, gaid=input_grid)
+  CALL IMPORT(gridinfol)
+! check verification time
+  vt = gridinfol%time + timedelta_new(sec=gridinfol%timerange%p1)
+  IF ((vt >= s_d .OR. .NOT.c_e(s_d)) .AND. (vt <= e_d .OR. .NOT.c_e(e_d))) THEN
+    CALL insert(gridinfotmp, gridinfol)
+  ELSE
+    CALL delete(gridinfol)
+  ENDIF
+ENDDO
+
+CALL packarray(gridinfotmp)
+IF (gridinfotmp%arraysize <= 0) THEN
+  CALL l4f_category_log(category,L4F_ERROR,'No useful time levels found in file '//TRIM(input_file))
+  CALL raise_fatal_error()
+ENDIF
+
+CALL IMPORT(voltmp, gridinfotmp, time_definition=1) ! verification time
+!CALL delete(gridinfotmp)
+!CALL IMPORT(voltmp, input_file, time_definition=1) ! verification time
 ! error checking
-CALL IMPORT(voltmp, input_file, time_definition=1) ! verification time
 IF (.NOT.ASSOCIATED(voltmp)) THEN
   CALL l4f_category_log(category,L4F_ERROR,'Error importing grib file '//TRIM(input_file))
   CALL raise_fatal_error()
@@ -135,12 +192,12 @@ CALL rounding(voltmp(1), vol_iso0, timerange=voltmp(1)%timerange)
 CALL delete(voltmp)
 ! define time interval
 IF (SIZE(vol_iso0%time) > 1) THEN
-  c_i = vol_iso0%time(2) - vol_iso0%time(1)
+  c_s = vol_iso0%time(2) - vol_iso0%time(1)
 ELSE
-  c_i = timedelta_new(hour=1)
+  c_s = timedelta_new(hour=1)
 ENDIF
 DO i = 2, SIZE(vol_iso0%time)
-  IF (vol_iso0%time(i) - vol_iso0%time(i-1) /= c_i) THEN
+  IF (vol_iso0%time(i) - vol_iso0%time(i-1) /= c_s) THEN
     CALL l4f_category_log(category,L4F_ERROR,'Error, grib file has non regular time steps, this is not allowed')
     CALL raise_fatal_error()
   ENDIF
@@ -150,7 +207,7 @@ IF (ldisplay) CALL display(vol_iso0)
 
 DO i = optind + 1, iargc() - 1
   CALL getarg(i, input_file)
-  CALL read_netcdf(input_file, vol_etop, vol_iso0%time, c_i, radarlist, category)
+  CALL read_netcdf(input_file, vol_etop, vol_iso0%time, c_s, radarlist, category)
 ENDDO
 
 CALL init(mod2rad, 'inter', 'bilin')

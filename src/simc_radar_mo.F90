@@ -90,12 +90,11 @@ CALL check(nf90_inquire_dimension(ncid, id_mesh, len=dim_mesh))
 CALL check(nf90_inq_varid(ncid, "geo_dim", varid_geo))
 CALL check(nf90_inq_varid(ncid, "mesh_dim", varid_mesh))
 
-! get radar name as attribute andidentify it
+! get radar name as attribute and identify it
 CALL check(nf90_get_att(ncid, NF90_GLOBAL, "RADARS_NAME", radname))
 DO i = 1, SIZE(radarlist)
   IF (TRIM(radarlist(i)%name) == TRIM(radname)) THEN
     nradar = i
-    PRINT*,'Found radar',TRIM(radname)
     EXIT
   ENDIF
 ENDDO
@@ -128,7 +127,6 @@ ELSE
   CALL raise_fatal_error()
 ENDIF
 CALL init(rtime, isodate=time(il+1:))
-PRINT*,'Detected time:',to_char(rtime)
 
 CALL check(nf90_inquire(ncid, ndim, nvar, natt, nunlimdimid))
 varid_h = imiss
@@ -149,8 +147,7 @@ IF (.NOT.c_e(varid_h)) THEN
 ENDIF
 CALL check(nf90_get_att(ncid, varid_h, "var_missing", chmiss))
 j = f_nblnk(chmiss)
-hmiss = c2r(TRIM(chmiss(j:))) ! perche' non funziona c2r (hmiss = rmiss)?
-!PRINT*,'missingc',TRIM(chmiss(j:)),'missingr',hmiss
+!hmiss = c2r(TRIM(chmiss(j:))) ! perche' non funziona c2r (ritorna rmiss)?
 hmiss = -9999.90 ! per ora faccio a mano
 
 !ALLOCATE (lon(dim_lon), lat(dim_lat), geo_lim(dim_geo), mesh_xy(dim_mesh))
@@ -197,7 +194,6 @@ DO i = 1, dim_time
   vtime = rtime + ts*timedelta_new(hour=delta_t(1)) + timestep/2
   vtime = vtime - MOD(vtime, timestep) ! round to step (tipically 1h)
   j = firsttrue(vtime == vol_nc%time)
-  PRINT*,'Assigned time:',to_char(vtime),' found at pos.',j
   IF (j > 0) THEN
 ! get data array
     CALL check(nf90_get_var(ncid, varid_h, databuff, (/1,1,i/),(/dim_lon,dim_lat,i/)))
@@ -214,7 +210,7 @@ DO i = 1, dim_time
       ENDWHERE
     ENDWHERE
   ELSE
-    CALL l4f_category_log(category,L4F_WARN,'time in netcdf file does not fit in available interval')
+    CALL l4f_category_log(category,L4F_WARN,'time '//to_char(vtime)//' does not fit in available interval')
   ENDIF
 ENDDO
 
