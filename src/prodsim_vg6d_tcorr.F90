@@ -151,8 +151,13 @@ IF (output_orography /= '') THEN
   ELSE IF (output_orography_format == 'BUFR' .OR. output_orography_format == 'CREX') THEN
     CALL init(v7d_dba, filename=output_orography, FORMAT=output_orography_format, file=.TRUE., &
      WRITE=.FALSE., categoryappend="output_orography")
-    CALL import(v7d_dba, anaonly=.TRUE.)
+!    CALL IMPORT(v7d_dba, anavar=(/'B07030','B07031','B07002','B07007'/), &
+!     anavarkind=(/'r','r','r','r'/), anaonly=.TRUE.)
+! temporary, improve by importing all and selecting only present variable
+    CALL IMPORT(v7d_dba, anavar=(/'B07030'/), &
+     anavarkind=(/'r'/), anaonly=.TRUE.)
     v7d_oo = v7d_dba%vol7d
+
 ! destroy v7d_dba without deallocating the contents passed to v7d
     CALL init(v7d_dba%vol7d)
     CALL delete(v7d_dba)
@@ -273,10 +278,11 @@ ELSE
    sub_type=trans_type(w_s(2):w_e(2)), categoryappend="transformation")
 
 ! convert to real data
-  CALL vol7d_convr(v7d_oo, v7dtmp)
-  CALL delete(v7d_oo)
-  v7d_oo = v7dtmp
-  CALL init(v7dtmp) ! detach it
+!  CALL vol7d_convr(v7d_oo, v7dtmp)
+!  CALL vol7d_copy(v7d_oo, v7dtmp, miss=.TRUE.)
+!  CALL delete(v7d_oo)
+!  v7d_oo = v7dtmp
+!  CALL init(v7dtmp) ! detach it
   
 ! try different variables for station height:
 ! height of ground, height of barometer, height or altitude, height
