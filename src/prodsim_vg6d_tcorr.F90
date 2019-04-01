@@ -22,7 +22,7 @@ CHARACTER(len=512) :: a_name, input_orography, output_orography, &
  input_file, output_file
 CHARACTER(len=12) :: tcorr_method, output_orography_format
 CHARACTER(len=160) :: trans_type
-REAL :: tgrad
+REAL :: tgrad, orography_thresh
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay, gridded
@@ -70,6 +70,10 @@ CALL optionparser_add(opt, ' ', 'trans-type', trans_type, &
  default='inter:bilin', help= &
  'transformation type (grid to sparse points), in the case of output on &
  &sparse points, in the form ''trans-type:subtype''')
+orography_thresh = rmiss
+CALL optionparser_add(opt, ' ', 'orography-thresh', orography_thresh, &
+ help='threshold for orography difference in m, if provided, points having &
+ &an orography difference higher than the value requested, are eliminated from output')
 
 ! display option
 CALL optionparser_add(opt, 'd', 'display', ldisplay, help= &
@@ -312,12 +316,22 @@ ELSE
         DO j = 1, SIZE(v7d_t%level)
           DO i = 1, SIZE(v7d_t%time)
             WHERE(c_e(v7d_oo%volanar(:,hindex,1)) .AND. &
-             c_e(v7d_io%voldatir(:,1,1,1,1,1)) .AND. c_e(v7d_t%voldatir(:,i,j,k,tindex,l)))
+             c_e(v7d_io%voldatir(:,1,1,1,1,1)) .AND. &
+             c_e(v7d_t%voldatir(:,i,j,k,tindex,l)))
               v7d_t%voldatir(:,i,j,k,tindex,l) = v7d_t%voldatir(:,i,j,k,tindex,l) + &
                tgrad*(v7d_oo%volanar(:,hindex,1)-v7d_io%voldatir(:,1,1,1,1,1))
             ELSEWHERE
               v7d_t%voldatir(:,i,j,k,tindex,l) = rmiss
             END WHERE
+            IF (c_e(orography_thresh)) THEN ! reset to missing if threshold provided
+              WHERE(c_e(v7d_oo%volanar(:,hindex,1)) .AND. &
+               c_e(v7d_io%voldatir(:,1,1,1,1,1)) .AND. &
+               c_e(v7d_t%voldatir(:,i,j,k,tindex,l)) .AND. &
+               v7d_oo%volanar(:,hindex,1)-v7d_io%voldatir(:,1,1,1,1,1) > orography_thresh)
+                
+                v7d_t%voldatir(:,i,j,k,tindex,l) = rmiss
+              END WHERE
+            ENDIF
           ENDDO
         ENDDO
       ENDDO
