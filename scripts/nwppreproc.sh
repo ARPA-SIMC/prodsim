@@ -15,13 +15,14 @@
 DATE="${1}-${2}-${3} ${4}:00"
 DATEFILE=$1$2$3$4
 # arkimet dataset
-DS=http://arkimet.metarpa:8090/dataset/lmsmr6x54
+DS=http://arkimet.metarpa:8090/dataset/cosmo_5M_ita
 # accumulation step
 STEP='0 01'
 
 # define useful arkimet keys
 # product: wind, t and dew-point t, total precipitation, direct and diffuse radiation (COSMO specific)
-PROD_CONST="GRIB1,,2,6 or GRIB1,,2,81"
+PROD_ORO="GRIB1,,2,6"
+PROD_FRLAND="GRIB1,,2,81"
 PROD_WIND="GRIB1,,2,33 or GRIB1,,2,34"
 PROD_T="GRIB1,,2,11"
 PROD_TD="GRIB1,,2,17"
@@ -38,10 +39,14 @@ LEV_SURF="GRIB1,1"
 LEV_SOIL="GRIB1,111"
 
 # clean old files
-rm -f const.grib uv.grib t.grib td.grib ts.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
+rm -f oro.grib frland.grib uv.grib t.grib td.grib ts.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
+
+set -x
 # split the query to avoid undesired fields because of "or" operator
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_CONST; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > const.grib
+	   "reftime: ==$DATE; product: $PROD_ORO; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > oro.grib
+arki-query --data \
+	   "reftime: ==$DATE; product: $PROD_FRLAND; timerange: GRIB1,0,0; level: $LEV_SURF" $DS > frland.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_WIND; timerange: $TR_IST; level: $LEV_HOS" $DS > uv.grib
 arki-query --data \
@@ -55,8 +60,8 @@ arki-query --data \
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
 
-# compute height of surface (and throw away land fraction B29192)
-vg6d_transform --output-variable-list=B10009 const.grib constz.grib
+# compute height of surface
+vg6d_transform --output-variable-list=B10009 oro.grib oroz.grib
 # compute wind speed and wind direction
 vg6d_transform --output-variable-list=B11001,B11002 uv.grib sd.grib
 # compute relative humidity
@@ -67,4 +72,10 @@ vg6d_transform --output-variable-list=B13003 ttd.grib rh.grib
 vg6d_transform --comp-stat-proc=1:1 --comp-step="$STEP" prec.grib precacc.grib
 # average on desired interval
 vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
-# ...
+
+# keep temperature and dew point temperature only on land points
+vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
+	       --maskbounds=0.5,1.5 \
+	       --coord-format=grib_api --coord-file=frland.grib \
+	       ttd.grib ttd_landonly.grib
+
