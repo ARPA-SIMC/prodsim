@@ -55,15 +55,15 @@ CALL optionparser_add(opt, ' ', 'tgrad', tgrad, &
  help='constant vertical temperature gradient in K/m, to be used with &
  &--tcorr-method=user, it should be <0 for temperature decreasing with height')
 input_orography = ''
-CALL optionparser_add(opt, ' ', 'input-orograhy', input_orography, &
+CALL optionparser_add(opt, ' ', 'input-orography', input_orography, &
  help='name of file containing the orography associated to the input &
  &temperature data, it should be on the same grid as the input data')
 output_orography = ''
-CALL optionparser_add(opt, ' ', 'output-orograhy', output_orography, &
+CALL optionparser_add(opt, ' ', 'output-orography', output_orography, &
  help='name of file containing the target orography to which temperature &
  &should be corrected in output, if gridded, it should be on the same grid &
  &as the input data, otherwise it should be a set of sparse points with height data')
-CALL optionparser_add(opt, ' ', 'output-orograhy-format', output_orography_format, &
+CALL optionparser_add(opt, ' ', 'output-orography-format', output_orography_format, &
  default='grib_api', &
  help='format of the file defining output orography, grib_api or BUFR')
 CALL optionparser_add(opt, ' ', 'trans-type', trans_type, &
