@@ -24,7 +24,7 @@ TYPE(grid_id) :: input_grid_id
 
 CALL l4f_launcher(a_name, a_name_force="expand_field")
 ier = l4f_init()
-category=l4f_category_get(a_name//".main")
+category=l4f_category_get(TRIM(a_name)//".main")
 
 ! define the option parser
 opt = optionparser_new(description_msg= &

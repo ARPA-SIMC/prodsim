@@ -56,7 +56,7 @@ CALL l4f_launcher(a_name, a_name_force="etop2grib")
 ! log4fortran init
 ier = l4f_init()
 ! set a_name
-category = l4f_category_get(a_name//".main")
+category = l4f_category_get(TRIM(a_name)//".main")
 
 ! initialise radarlist
 CALL init(tmpcoord, 10.508333D0, 44.791667D0)

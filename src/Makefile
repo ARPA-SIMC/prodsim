@@ -7,7 +7,7 @@ FCFLAGS = -g -fbounds-check -Wall
 FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
 
 # libraries needed for linking, unused in the examples
-LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -lgrib_api -lsim_termolib -llog4c
+LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -leccodes -lsim_termolib -llog4c
 
 # List of executables to be built within the package
 PROGRAMS = prodsim_thunderstorm_index prodsim_vg6d_tcorr prodsim_create_projgrib \
@@ -35,7 +35,7 @@ prodsim_compute_poh: prodsim_compute_poh.o
 	$(FC) $(FCFLAGS) -o $@ $^ $(LDFLAGS) -lnetcdff -lnetcdf
 
 cosmo_to_premoloch: cosmo_to_premoloch.o
-	$(FC) $(FCFLAGS) -o $@ $^ -lgrib_api -lgrib_api_f90
+	$(FC) $(FCFLAGS) -o $@ $^ -leccodes -leccodes_f90
 
 # General rules for building prog.o from prog.f90 or prog.F90; $< is
 # used in order to list only the first prerequisite (the source file)

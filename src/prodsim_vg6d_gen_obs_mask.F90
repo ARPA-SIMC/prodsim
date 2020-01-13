@@ -32,7 +32,7 @@ DOUBLE PRECISION,ALLOCATABLE :: lon_array(:), lat_array(:)
 CALL l4f_launcher(a_name,a_name_force='prodsim_vg6d_gen_obs_mask')
 ier=l4f_init()
 ! set a_name
-category=l4f_category_get(a_name//'.main')
+category=l4f_category_get(TRIM(a_name)//'.main')
 
 ! define the option parser
 opt = optionparser_new(description_msg= &
