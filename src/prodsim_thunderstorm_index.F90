@@ -277,6 +277,9 @@ CHARACTER(len=8) :: inizio
 CHARACTER(len=2) :: fine
 CHARACTER(len=12) :: yyyymmddhhrr
 
+! output file
+TYPE(csv_record) :: csv_writer
+
 ! initialise logging
 CALL l4f_launcher(a_name,a_name_force='prodsim_vg6d_tcorr')
 ier=l4f_init()
@@ -320,12 +323,12 @@ IF (version) THEN
   CALL exit(0)
 ENDIF
 
-!IF (optind+5 /= iargc()) THEN
-!  CALL optionparser_printhelp(opt)
-!  CALL l4f_category_log(category,L4F_ERROR,'input and/or output file(s) missing')
-!  CALL raise_fatal_error()
-!  CALL EXIT(1)
-!ENDIF
+IF (optind+5 /= iargc()) THEN
+  CALL optionparser_printhelp(opt)
+  CALL l4f_category_log(category,L4F_ERROR,'input and/or output file(s) missing')
+  CALL raise_fatal_error()
+  CALL EXIT(1)
+ENDIF
 
 IF (optind+4 /= iargc()) THEN
   CALL optionparser_printhelp(opt)
@@ -449,9 +452,7 @@ ENDIF
 volgridlev = volgrid_tmp(1)
 DEALLOCATE(volgrid_tmp)
 
-!!!!!!!SE USO OPERAZIONIDATA_PARALLEL DEVO DECOMMENTARE
-!! get output_csv filename
-!CALL getarg(optind+5, output_csv)
+CALL getarg(optind+5, output_csv)
 
 IF (ldisplay) THEN
   PRINT*,'input volume >>>>>>>>>>>>>>>>>>>>'
@@ -1150,67 +1151,38 @@ CALL getval(volgridua%time(1), simpledate=filetimename)
 100 FORMAT(F7.2,",")
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! SOLO PER IL PRIMO FILE DI NOV2014, POI COMMENTA
-
-!OPEN(unit=2,file='ProvaSuPrevisione.csv') !manca position append in quanto primo file
-!WRITE(2,97)"Data","Macroarea","%VV300","%VV700","%VWS500.950","%VWS700.1000","Jet925","Jet250", &
-!     "LI","CAPE","CIN","Kindex","%MCSindex","TWC","R.H.500","%AvvT500","%AvvTd850", &
-!     "%VortRel500","AvvGeop500"
-
-!DO i = 1 , 8
-!WRITE(2,98,advance="no")TRIM(filetimename)
-!   WRITE(2,99,advance="no")i
-!   WRITE(2,100,advance="no")example_omega300(i)
-!   WRITE(2,100,advance="no")example_omega(i)
-!   WRITE(2,100,advance="no")example_vws500(i)
-!   WRITE(2,100,advance="no")example_vws(i)
-!   WRITE(2,100,advance="no")example_jet925(i)
-!   WRITE(2,100,advance="no")example_jet(i)
-!   WRITE(2,100,advance="no")example_sli(i)
-!   WRITE(2,100,advance="no")example_cape(i)
-!   WRITE(2,100,advance="no")example_cin(i)
-!   WRITE(2,100,advance="no")example_kindex(i)
-!   WRITE(2,100,advance="no")example_mcsindex(i)
-!   WRITE(2,100,advance="no")example_twc(i)
-!   WRITE(2,100,advance="no")example_relhum(i)
-!   WRITE(2,100,advance="no")example_tadv12h(i)
-!   WRITE(2,100,advance="no")example_tdewadv12h(i)
-!   WRITE(2,100,advance="no")example_index1(i)
-!   WRITE(2,100)example_geopavv(i)
-!ENDDO
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-!! DAL SECONDO FILE IN POI
-
-OPEN(unit=2,file="/autofs/scratch-mod/ddalessandro/prodsim/scripts/predittori"//yyyymmddhhrr//".csv",position="append")
-!OPEN(unit=2,file=output_csv,position="append")
+OPEN(unit=2,file=output_csv,position="append")
+WRITE(2,'19(A13,'','')')"Data","Macroarea","%VV300","%VV700", &
+ "%VWS500.950","%VWS700.1000","Jet925","Jet250", &
+ "LI","CAPE","CIN","Kindex","%MCSindex","TWC","R.H.500", &
+ "%AvvT500","%AvvTd850","%VortRel500","AvvGeop500"
 
 DO i = 1 , 102
-!DO i = 1 , 8
-!  timearea = TRIM(filetimename) // i
-   ! WRITE(2,98,advance="no")TRIM(filetimename)
-   WRITE(2,98,advance="no")datafile
-   WRITE(2,99,advance="no")i
-   WRITE(2,100,advance="no")example_omega300(i)
-   WRITE(2,100,advance="no")example_omega(i)
-   WRITE(2,100,advance="no")example_vws500(i)
-   WRITE(2,100,advance="no")example_vws(i)
-   WRITE(2,100,advance="no")example_jet925(i)
-   WRITE(2,100,advance="no")example_jet(i)
-   WRITE(2,100,advance="no")example_sli(i)
-   WRITE(2,100,advance="no")example_cape(i)
-   WRITE(2,100,advance="no")example_cin(i)
-   WRITE(2,100,advance="no")example_kindex(i)
-   WRITE(2,100,advance="no")example_mcsindex(i)
-   WRITE(2,100,advance="no")example_twc(i)
-   WRITE(2,100,advance="no")example_relhum(i)
-   WRITE(2,100,advance="no")example_tadv12h(i)
-   WRITE(2,100,advance="no")example_tdewadv12h(i)
-   WRITE(2,100,advance="no")example_index1(i)
-   WRITE(2,100)example_geopavv(i)
+  CALL init(scv_writer)
+  CALL csv_record_addfield(csv_writer, datafile)
+  CALL csv_record_addfield(csv_writer, i)
+  CALL csv_record_addfield(csv_writer, example_omega300(i))
+  CALL csv_record_addfield(csv_writer, example_omega(i))
+  CALL csv_record_addfield(csv_writer, example_vws500(i))
+  CALL csv_record_addfield(csv_writer, example_vws(i))
+  CALL csv_record_addfield(csv_writer, example_jet925(i))
+  CALL csv_record_addfield(csv_writer, example_jet(i))
+  CALL csv_record_addfield(csv_writer, example_sli(i))
+  CALL csv_record_addfield(csv_writer, example_cape(i))
+  CALL csv_record_addfield(csv_writer, example_cin(i))
+  CALL csv_record_addfield(csv_writer, example_kindex(i))
+  CALL csv_record_addfield(csv_writer, example_mcsindex(i))
+  CALL csv_record_addfield(csv_writer, example_twc(i))
+  CALL csv_record_addfield(csv_writer, example_relhum(i))
+  CALL csv_record_addfield(csv_writer, example_tadv12h(i))
+  CALL csv_record_addfield(csv_writer, example_tdewadv12h(i)
+  CALL csv_record_addfield(csv_writer, example_index1(i))
+  CALL csv_record_addfield(csv_writer, example_geopavv(i))
+  WRITE(2,'(A)')csv_record_getrecord(csv_writer)
+  CALL delete(csv_writer)
 ENDDO
+
+CLOSE(2)
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
