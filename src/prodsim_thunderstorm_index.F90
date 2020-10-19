@@ -238,13 +238,12 @@ USE termolib
 USE datetime_class
 IMPLICIT NONE
 
-INTEGER :: category, ier, k, f, j, i, NT, d
+INTEGER :: category, ier, k, f, j, i, nt
 CHARACTER(len=512) :: a_name, input_file, output_file, mask_file, output_csv
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay
-TYPE(volgrid6d),POINTER :: volgrid_tmp(:), volgrid_tmpr(:)
-TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua, volgridmask, volgridlev
+TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua, volgridmask, volgridlev, volgrid_tmp
 REAL,ALLOCATABLE :: dxm1(:,:), dym1(:,:)
 INTEGER,ALLOCATABLE :: intmask(:,:)
 INTEGER :: nzones
@@ -268,15 +267,9 @@ REAL,ALLOCATABLE :: example_tdewadv12h(:), example_hgeopot(:), example_geopavv(:
 REAL,ALLOCATABLE :: example_vws500(:), example_jet925(:)
 
 ! pressure and temperature values at levels
-REAL, DIMENSION(32) ::  aw
-REAL, DIMENSION(24) :: depth
+REAL, DIMENSION(32) ::  aw ! allocate correctly!!!
 
 CHARACTER(len=12) :: filetimename
-CHARACTER(len=13) :: timearea
-CHARACTER(len=10) :: datafile
-CHARACTER(len=8) :: inizio
-CHARACTER(len=2) :: fine
-CHARACTER(len=12) :: yyyymmddhhrr
 
 ! output file
 TYPE(csv_record) :: csv_writer
@@ -302,6 +295,10 @@ CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
  help='mask file for spatial averaging of the results, if empty computations &
  &will be performed point by point')
 
+CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
+ help='mask file for spatial averaging of the results, if empty computations &
+ &will be performed point by point')
+
 ! display option
 CALL optionparser_add(opt, 'd', 'display', ldisplay, help= &
  'briefly display the data volumes imported')
@@ -320,7 +317,7 @@ ELSE IF (optstatus == optionparser_err) THEN
   CALL raise_fatal_error()
 ENDIF
 IF (version) THEN
-  WRITE(*,'(A,1X,A)')'prodsim_thunderstorm_index','0.1'
+  WRITE(*,'(A,1X,A)')'prodsim_thunderstorm_index','0.2'
   CALL exit(0)
 ENDIF
 
@@ -340,94 +337,27 @@ ENDIF
 
 ! inputz
 CALL getarg(optind, input_file)
-CALL l4f_category_log(category,L4F_INFO,'inputz file: '//TRIM(input_file))
-
-CALL IMPORT(volgrid_tmp, filename=input_file, decode=.TRUE., dup_mode=0, &
- time_definition=0, categoryappend='inputz')
-IF (SIZE(volgrid_tmp) > 1) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(input_file))
-  CALL raise_fatal_error()
-ENDIF
-volgridz = volgrid_tmp(1)
-DEALLOCATE(volgrid_tmp)
-
-datafile = input_file(12:21)
-PRINT*, datafile
-!inizio = input_file(12:19)
-inizio = input_file(12:21)
-fine = input_file(22:23)
-!yyyymmddhhrr = inizio//fine
-yyyymmddhhrr = input_file(12:23)
+CALL read_input_volume(input_file, volgridz)
 
 ! inputsurf
 CALL getarg(optind+1, input_file)
-CALL l4f_category_log(category,L4F_INFO,'inputsurf file: '//TRIM(input_file))
-
-CALL IMPORT(volgrid_tmp, filename=input_file, decode=.TRUE., dup_mode=0, &
- time_definition=0, categoryappend='inputsurf')
-IF (SIZE(volgrid_tmp) > 1) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(input_file))
-  CALL raise_fatal_error()
-ENDIF
+CALL read_input_volume(input_file, volgrid_tmp, volgridz)
 ! round the volume to flatten similar level and timeranges
-CALL rounding(volgrid_tmp, volgrid_tmpr, level=almost_equal_levels, nostatproc=.TRUE.)
+CALL rounding(volgrid_tmp, volgridsurf, level=almost_equal_levels, nostatproc=.TRUE.)
 CALL delete(volgrid_tmp)
-volgridsurf = volgrid_tmpr(1)
-DEALLOCATE(volgrid_tmpr)
-IF (volgridsurf%griddim /= volgridz%griddim) THEN
-  CALL display(volgridsurf%griddim)
-  CALL display(volgridz%griddim)
-  CALL l4f_category_log(category, L4F_ERROR, &
-   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-  CALL raise_fatal_error()
-ENDIF
-
 
 ! inputua
 CALL getarg(optind+2, input_file)
-CALL l4f_category_log(category,L4F_INFO,'inputua file: '//TRIM(input_file))
-
-CALL IMPORT(volgrid_tmp, filename=input_file, decode=.TRUE., dup_mode=0, &
- time_definition=0, categoryappend='inputua')
-IF (SIZE(volgrid_tmp) > 1) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(input_file))
-  CALL raise_fatal_error()
-ENDIF
-volgridua = volgrid_tmp(1)
-DEALLOCATE(volgrid_tmp)
-IF (volgridua%griddim /= volgridz%griddim) THEN
-  CALL display(volgridua%griddim)
-  CALL display(volgridz%griddim)
-  CALL l4f_category_log(category, L4F_ERROR, &
-   'grid in '//TRIM(input_file)//' differs from grid in inputz file')
-  CALL raise_fatal_error()
-ENDIF
+CALL read_input_volume(input_file, volgridua, volgridz)
 IF (SIZE(volgridua%level) /= SIZE(volgridz%level)) THEN
   CALL l4f_category_log(category, L4F_ERROR, &
+   'n. of levels in '//input_file//' differs from reference value '//&
    t2c(SIZE(volgridua%level))//'/'//t2c(SIZE(volgridz%level)))
   CALL raise_fatal_error()
 ENDIF
 
 IF (mask_file /= '') THEN
-  CALL IMPORT(volgrid_tmp, filename=mask_file, decode=.TRUE., dup_mode=0, &
- time_definition=0, categoryappend='inputmask')
-  IF (SIZE(volgrid_tmp) > 1) THEN
-    CALL l4f_category_log(category, L4F_ERROR, &
-     t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(mask_file))
-    CALL raise_fatal_error()
-  ENDIF
-  volgridmask = volgrid_tmp(1)
-  DEALLOCATE(volgrid_tmp)
-  IF (volgridmask%griddim /= volgridz%griddim) THEN
-    call display(volgridmask%griddim)
-    call display(volgridz%griddim)
-    CALL l4f_category_log(category, L4F_ERROR, &
-     'grid in '//TRIM(mask_file)//' differs from grid in inputz file')
-    CALL raise_fatal_error()
-  ENDIF
+CALL read_input_volume(mask_file, volgridmask, volgridz)
 ! is this necessary for IMPLICIT allocation?
   ALLOCATE(intmask(SIZE(volgridmask%voldati,1),SIZE(volgridmask%voldati,2)))
   WHERE(c_e(volgridmask%voldati(:,:,1,1,1,1)))
@@ -438,22 +368,12 @@ IF (mask_file /= '') THEN
   nzones = MAXVAL(intmask, mask=c_e(intmask))
 ENDIF
 
-
 ! inputlev
 CALL getarg(optind+3, input_file)
+CALL read_input_volume(input_file, volgridlev, volgridz)
 CALL l4f_category_log(category,L4F_INFO,'inputlev file: '//TRIM(input_file))
 
-CALL IMPORT(volgrid_tmp, filename=input_file, decode=.TRUE., dup_mode=0, &
- time_definition=0, categoryappend='inputlev')
-IF (SIZE(volgrid_tmp) > 1) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(input_file))
-  CALL raise_fatal_error()
-ENDIF
-volgridlev = volgrid_tmp(1)
-DEALLOCATE(volgrid_tmp)
-
-CALL getarg(optind+5, output_csv)
+CALL getarg(optind+5, output_csv) ! +4?
 
 IF (ldisplay) THEN
   PRINT*,'input volume >>>>>>>>>>>>>>>>>>>>'
@@ -673,11 +593,6 @@ ELSE
    CALL raise_fatal_error()
 ENDIF
 
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
 !IF (ALLOCATED(example_sli)) THEN
 !   PRINT*,'Lifted Index (SLI)'
 !   PRINT*,example_sli
@@ -705,17 +620,6 @@ ELSE
    CALL raise_fatal_error()
 ENDIF
 
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_cin)) THEN
-!   PRINT*,'CIN (J/Kg)'
-!   PRINT*,example_cin
-!ENDIF
-
-
 ! K index
 
 IF (c_e(it) .AND. c_e(itd)) THEN
@@ -733,17 +637,6 @@ ELSE
         't or td missing in upper air data')
    CALL raise_fatal_error()
 ENDIF
-
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_kindex)) THEN
-!   PRINT*,'K index'
-!   PRINT*,example_kindex
-!ENDIF
-
 
 
 ! MCS index
@@ -765,16 +658,6 @@ ELSE
         'u, v or t missing in upper air data')
    CALL raise_fatal_error()
 ENDIF
-
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_mcsindex)) THEN
-!   PRINT*,'% MCS index'
-!   PRINT*,example_mcsindex
-!ENDIF
 
 
 ! Total Water Content
@@ -830,35 +713,12 @@ IF (ALLOCATED(intmask)) THEN
    example_twc = mask_average(totalwc, intmask, nzones)
 ENDIF
 
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_twc)) THEN
-!   PRINT*,'TWC (Kg/m2)'
-!   PRINT*,example_twc
-!ENDIF
-
-
 ! Relative humidity
    
 relhum = volgridua%voldati(:,:,l500, 1, 1, irh)
 IF (ALLOCATED(intmask)) THEN
    example_relhum = mask_average(relhum, intmask, nzones)
 ENDIF
-
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_relhum)) THEN
-!   PRINT*,'Relative Humidity at 500 hPa (%)'
-!   PRINT*,example_relhum
-!ENDIF
-
-
 
 ! LFC
 
@@ -882,18 +742,6 @@ ENDDO
 IF (ALLOCATED(intmask)) THEN
    example_lfc = mask_average(lfc, intmask, nzones)
 ENDIF
-
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_lfc)) THEN
-!   PRINT*,'LFC (hPa)'
-!   PRINT*,example_lfc
-!ENDIF
-
-
 
 ! LCL
 ! Equilibrium Level
@@ -942,20 +790,8 @@ ENDDO
 IF (ALLOCATED(intmask)) THEN
    example_lcl = mask_average(lcl, intmask, nzones)
 ENDIF
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-
-! output done here...
-
-!IF (ALLOCATED(example_lcl)) THEN
-!   PRINT*,'LCL (hPa)'
-!   PRINT*,example_lcl
-!ENDIF
-
 
 !calcolo ccl che mi permette di avere il livello di equilibrio
-
 
 ALLOCATE(pccl(SIZE(volgridua%voldati,1),SIZE(volgridua%voldati,2)))
 ALLOCATE(tambccl(SIZE(volgridua%voldati,1),SIZE(volgridua%voldati,2)))
@@ -996,20 +832,6 @@ IF (ALLOCATED(intmask)) THEN
    example_equilibrium = mask_average(equilibriumccl, intmask, nzones)
    example_ccl = mask_average(pccl, intmask, nzones)
 ENDIF
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_equilibrium)) THEN
-!   PRINT*,'EQL ccl (hPa)'
-!   PRINT*,example_equilibrium
-!ENDIF
-!IF (ALLOCATED(example_ccl)) THEN
-!   PRINT*,'CCL (hPa)'
-!   PRINT*,example_ccl
-!ENDIF
-
 
 ! cape(pt,tt,np,lfc,eql)
 
@@ -1028,16 +850,6 @@ ENDDO
 IF (ALLOCATED(intmask)) THEN
    example_cape = mask_average(capeindex, intmask, nzones)
 ENDIF
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_cape)) THEN
-!   PRINT*,'CAPE (J/Kg)'
-!   PRINT*,example_cape
-!ENDIF
-
 
 ! Temperature and Temperature Dew Point Advection at 500hPa in 12h
 
@@ -1079,26 +891,6 @@ IF (ALLOCATED(intmask)) THEN
    example_geopavv = mask_average(geopadvection12h, intmask, nzones)
 ENDIF
 
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_tadv12h)) THEN
-!   PRINT*,'% Temperature Advection at 500 hPa (k/12h)'
-!   PRINT*,example_tadv12h
-!ENDIF
-!IF (ALLOCATED(example_tdewadv12h)) THEN
-!   PRINT*,'% Dew Point Temperature Advection at 850 hPa (k/12h)'
-!   PRINT*,example_tdewadv12h
-!ENDIF
-!IF (ALLOCATED(example_geopavv)) THEN
-!   PRINT*, 'Geopotential Advection at 500hPa (dam/12h)'
-!   PRINT*,example_geopavv
-!ENDIF
-
-
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -1133,16 +925,6 @@ ELSE
    CALL raise_fatal_error()
 ENDIF
 
-! output
-CALL getarg(optind+4, output_file)
-CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
-! output done here...
-
-!IF (ALLOCATED(example_index1)) THEN
-!   PRINT*,'% positive vorticity at 500 hPa'
-!   PRINT*,example_index1
-!ENDIF
-
 
 CALL getval(volgridua%time(1), simpledate=filetimename)
 
@@ -1154,7 +936,7 @@ WRITE(2,'(19(A,'',''))')"Data","Macroarea","%VV300","%VV700", &
 
 DO i = 1, nzones
   CALL init(csv_writer)
-  CALL csv_record_addfield(csv_writer, datafile)
+  CALL csv_record_addfield(csv_writer, filetimename(1:10))
   CALL csv_record_addfield(csv_writer, i)
   CALL csv_record_addfield(csv_writer, example_omega300(i))
   CALL csv_record_addfield(csv_writer, example_omega(i))
@@ -1181,8 +963,6 @@ CLOSE(2)
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
 
 CALL delete(volgridz)
 CALL delete(volgridsurf)
@@ -1239,7 +1019,7 @@ ENDIF
 IF (PRESENT(comparevol)) THEN
   IF (volgrid_tmp(1)%griddim /= comparevol%griddim) THEN
     CALL display(volgrid_tmp(1)%griddim)
-    call display(comparevol%griddim)
+    CALL display(comparevol%griddim)
     CALL l4f_category_log(category, L4F_ERROR, &
      'grid in '//TRIM(infile)//' differs from reference grid')
     CALL raise_fatal_error()
