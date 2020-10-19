@@ -282,14 +282,14 @@ CHARACTER(len=12) :: yyyymmddhhrr
 TYPE(csv_record) :: csv_writer
 
 ! initialise logging
-CALL l4f_launcher(a_name,a_name_force='prodsim_vg6d_tcorr')
+CALL l4f_launcher(a_name,a_name_force='prodsim_thunderstorm_index')
 ier=l4f_init()
 ! set a_name
 category=l4f_category_get(a_name//'.main')
 
 ! define the option parser
 opt = optionparser_new(description_msg= &
-     'Preprocess data for computing thunderstorm index from 3d volumes of grib data.', &
+     'Preprocess data for computing thunderstorm indices from 3d volumes of grib data.', &
 !!!!! SE USO OPERAZIONIDATA_PARALLEL DECOMMENTARE E COMMENTARE RIGA SUCCESSIVA     
 ! usage_msg='Usage: prodsim_thunderstorm_index [options] inputz inputsurf inputua inputlev inputcsv outputfile')
  usage_msg='Usage: prodsim_thunderstorm_index [options] inputz inputsurf inputua inputlev outputfile')
@@ -1146,18 +1146,13 @@ CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
 
 CALL getval(volgridua%time(1), simpledate=filetimename)
 
-98 FORMAT(A13,",")
-99 FORMAT(I3,",")
-100 FORMAT(F7.2,",")
-
-
 OPEN(unit=2,file=output_csv,position="append")
-WRITE(2,'(19(A13,'',''))')"Data","Macroarea","%VV300","%VV700", &
+WRITE(2,'(19(A,'',''))')"Data","Macroarea","%VV300","%VV700", &
  "%VWS500.950","%VWS700.1000","Jet925","Jet250", &
  "LI","CAPE","CIN","Kindex","%MCSindex","TWC","R.H.500", &
  "%AvvT500","%AvvTd850","%VortRel500","AvvGeop500"
 
-DO i = 1 , 102
+DO i = 1, nzones
   CALL init(csv_writer)
   CALL csv_record_addfield(csv_writer, datafile)
   CALL csv_record_addfield(csv_writer, i)
@@ -1214,6 +1209,48 @@ DO i = 1, SIZE(varlist)
 ENDDO
 
 END FUNCTION vartable_index
+
+
+
+SUBROUTINE read_input_volume(infile, outvol, comparevol)
+CHARACTER(len=*),INTENT(in) :: infile
+TYPE(volgrid6d),INTENT(inout) :: outvol
+TYPE(volgrid6d),INTENT(in),OPTIONAL :: comparevol
+
+TYPE(volgrid6d),POINTER :: volgrid_tmp(:)=>NULL()
+
+CALL l4f_category_log(category,L4F_INFO,'importing volume from file: '//TRIM(infile))
+
+CALL import(volgrid_tmp, filename=infile, decode=.TRUE., dup_mode=0, &
+ time_definition=0, categoryappend='inputvol')
+
+IF (.NOT.ASSOCIATED(volgrid_tmp)) THEN
+  CALL l4f_category_log(category, L4F_ERROR, &
+   'error importing volume from '//TRIM(infile))
+  CALL raise_fatal_error()
+ENDIF
+
+IF (SIZE(volgrid_tmp) > 1) THEN
+  CALL l4f_category_log(category, L4F_ERROR, &
+   t2c(SIZE(volgrid_tmp))//' grids found in '//TRIM(infile)//', 1 expected')
+  CALL raise_fatal_error()
+ENDIF
+
+IF (PRESENT(comparevol)) THEN
+  IF (volgrid_tmp(1)%griddim /= comparevol%griddim) THEN
+    CALL display(volgrid_tmp(1)%griddim)
+    call display(comparevol%griddim)
+    CALL l4f_category_log(category, L4F_ERROR, &
+     'grid in '//TRIM(infile)//' differs from reference grid')
+    CALL raise_fatal_error()
+  ENDIF
+ENDIF
+
+outvol = volgrid_tmp(1)
+DEALLOCATE(volgrid_tmp)
+
+END SUBROUTINE read_input_volume
+
 
 
 END PROGRAM prodsim_thunderstorm_index
