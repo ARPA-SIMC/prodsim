@@ -225,6 +225,7 @@ USE log4fortran
 USE err_handling
 USE missing_values
 USE char_utilities
+USE file_utilities
 !USE phys_const
 USE optionparser_class
 USE vol7d_var_class
@@ -1145,20 +1146,19 @@ CALL l4f_category_log(category,L4F_INFO,'output file: '//TRIM(output_file))
 
 CALL getval(volgridua%time(1), simpledate=filetimename)
 
-97 FORMAT(19(A13,","))
 98 FORMAT(A13,",")
 99 FORMAT(I3,",")
 100 FORMAT(F7.2,",")
 
 
 OPEN(unit=2,file=output_csv,position="append")
-WRITE(2,'19(A13,'','')')"Data","Macroarea","%VV300","%VV700", &
+WRITE(2,'(19(A13,'',''))')"Data","Macroarea","%VV300","%VV700", &
  "%VWS500.950","%VWS700.1000","Jet925","Jet250", &
  "LI","CAPE","CIN","Kindex","%MCSindex","TWC","R.H.500", &
  "%AvvT500","%AvvTd850","%VortRel500","AvvGeop500"
 
 DO i = 1 , 102
-  CALL init(scv_writer)
+  CALL init(csv_writer)
   CALL csv_record_addfield(csv_writer, datafile)
   CALL csv_record_addfield(csv_writer, i)
   CALL csv_record_addfield(csv_writer, example_omega300(i))
@@ -1175,7 +1175,7 @@ DO i = 1 , 102
   CALL csv_record_addfield(csv_writer, example_twc(i))
   CALL csv_record_addfield(csv_writer, example_relhum(i))
   CALL csv_record_addfield(csv_writer, example_tadv12h(i))
-  CALL csv_record_addfield(csv_writer, example_tdewadv12h(i)
+  CALL csv_record_addfield(csv_writer, example_tdewadv12h(i))
   CALL csv_record_addfield(csv_writer, example_index1(i))
   CALL csv_record_addfield(csv_writer, example_geopavv(i))
   WRITE(2,'(A)')csv_record_getrecord(csv_writer)
