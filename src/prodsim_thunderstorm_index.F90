@@ -239,11 +239,11 @@ USE datetime_class
 IMPLICIT NONE
 
 INTEGER :: category, ier, k, f, j, i, nt
-CHARACTER(len=512) :: a_name, input_file, output_file, mask_file, output_csv
+CHARACTER(len=512) :: a_name, input_file, output_file, mask_file, lev_file, output_csv
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version, ldisplay
-TYPE(volgrid6d) :: volgridz, volgridsurf, volgridua, volgridmask, volgridlev, volgrid_tmp
+TYPE(volgrid6d) :: volgridsurf, volgridua, volgridmask, volgridlev, volgrid_tmp
 REAL,ALLOCATABLE :: dxm1(:,:), dym1(:,:)
 INTEGER,ALLOCATABLE :: intmask(:,:)
 INTEGER :: nzones
@@ -278,26 +278,27 @@ TYPE(csv_record) :: csv_writer
 CALL l4f_launcher(a_name,a_name_force='prodsim_thunderstorm_index')
 ier=l4f_init()
 ! set a_name
-category=l4f_category_get(a_name//'.main')
+category=l4f_category_get(TRIM(a_name)//'.main')
 
 ! define the option parser
 opt = optionparser_new(description_msg= &
-     'Preprocess data for computing thunderstorm indices from 3d volumes of grib data.', &
-!!!!! SE USO OPERAZIONIDATA_PARALLEL DECOMMENTARE E COMMENTARE RIGA SUCCESSIVA     
-! usage_msg='Usage: prodsim_thunderstorm_index [options] inputz inputsurf inputua inputlev inputcsv outputfile')
- usage_msg='Usage: prodsim_thunderstorm_index [options] inputz inputsurf inputua inputlev outputfile')
+     'Preprocess 3d gridded data volumes in grib format for computing thunderstorm indices.', &
+     usage_msg='Usage: prodsim_thunderstorm_index [options] inputsurf inputua outputfile')
 
 ! for generating mask file:
 ! vg6d_transform --trans-type=maskgen --sub-type=poly \
 !  --coord-file=/usr/local/share/libsim/macroaree_er --coord-FORMAT=shp \
 !  orog.grib mask.grib
 CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
- help='mask file for spatial averaging of the results, if empty computations &
- &will be performed point by point')
+ help='mask file for spatial averaging of the results, the file can to be generated &
+ &from a shapefile using `vg6d_transform --trans-type=maskgen --sub-type=poly &
+ &--coord-file=<shapefile> --coord-FORMAT=shp fieldin maskout`')
 
-CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
- help='mask file for spatial averaging of the results, if empty computations &
- &will be performed point by point')
+CALL optionparser_add(opt, ' ', 'lev-file', lev_file, default='', &
+ help='file with height of full model levels, it can be computed from a file with &
+ & height of half model levels using &
+ &`vg6d_transform --trans-type=vertint --sub-type=linear &
+ &--trans-level-type=105,,105,105 halfin fullout`')
 
 ! display option
 CALL optionparser_add(opt, 'd', 'display', ldisplay, help= &
@@ -321,43 +322,18 @@ IF (version) THEN
   CALL exit(0)
 ENDIF
 
-IF (optind+5 /= iargc()) THEN
+IF (optind + 2 /= iargc()) THEN
   CALL optionparser_printhelp(opt)
   CALL l4f_category_log(category,L4F_ERROR,'input and/or output file(s) missing')
   CALL raise_fatal_error()
   CALL EXIT(1)
 ENDIF
 
-IF (optind+4 /= iargc()) THEN
-  CALL optionparser_printhelp(opt)
-  CALL l4f_category_log(category,L4F_ERROR,'input and/or output file(s) missing')
-  CALL raise_fatal_error()
-  CALL EXIT(1)
-ENDIF
-
-! inputz
-CALL getarg(optind, input_file)
-CALL read_input_volume(input_file, volgridz)
-
-! inputsurf
-CALL getarg(optind+1, input_file)
-CALL read_input_volume(input_file, volgrid_tmp, volgridz)
-! round the volume to flatten similar level and timeranges
-CALL rounding(volgrid_tmp, volgridsurf, level=almost_equal_levels, nostatproc=.TRUE.)
-CALL delete(volgrid_tmp)
-
-! inputua
-CALL getarg(optind+2, input_file)
-CALL read_input_volume(input_file, volgridua, volgridz)
-IF (SIZE(volgridua%level) /= SIZE(volgridz%level)) THEN
-  CALL l4f_category_log(category, L4F_ERROR, &
-   'n. of levels in '//input_file//' differs from reference value '//&
-   t2c(SIZE(volgridua%level))//'/'//t2c(SIZE(volgridz%level)))
-  CALL raise_fatal_error()
-ENDIF
+! inputlev
+CALL read_input_volume(lev_file, volgridlev)
 
 IF (mask_file /= '') THEN
-CALL read_input_volume(mask_file, volgridmask, volgridz)
+CALL read_input_volume(mask_file, volgridmask, volgridlev)
 ! is this necessary for IMPLICIT allocation?
   ALLOCATE(intmask(SIZE(volgridmask%voldati,1),SIZE(volgridmask%voldati,2)))
   WHERE(c_e(volgridmask%voldati(:,:,1,1,1,1)))
@@ -368,19 +344,30 @@ CALL read_input_volume(mask_file, volgridmask, volgridz)
   nzones = MAXVAL(intmask, mask=c_e(intmask))
 ENDIF
 
-! inputlev
-CALL getarg(optind+3, input_file)
-CALL read_input_volume(input_file, volgridlev, volgridz)
-CALL l4f_category_log(category,L4F_INFO,'inputlev file: '//TRIM(input_file))
+! inputsurf
+CALL getarg(optind, input_file)
+CALL read_input_volume(input_file, volgrid_tmp, volgridlev)
+! round the volume to flatten similar levels and timeranges
+CALL rounding(volgrid_tmp, volgridsurf, level=almost_equal_levels, nostatproc=.TRUE.)
+CALL delete(volgrid_tmp)
 
-CALL getarg(optind+5, output_csv) ! +4?
+! inputua
+CALL getarg(optind+1, input_file)
+CALL read_input_volume(input_file, volgridua, volgridlev)
+IF (SIZE(volgridua%level) /= SIZE(volgridlev%level)) THEN
+  CALL l4f_category_log(category, L4F_ERROR, &
+   'n. of levels in '//input_file//' differs from reference value '//&
+   t2c(SIZE(volgridua%level))//'/'//t2c(SIZE(volgridlev%level)))
+  CALL raise_fatal_error()
+ENDIF
+
+CALL getarg(optind+2, output_csv) ! +4?
 
 IF (ldisplay) THEN
   PRINT*,'input volume >>>>>>>>>>>>>>>>>>>>'
-  CALL display(volgridz)
+  CALL display(volgridlev)
   CALL display(volgridsurf)
   CALL display(volgridua)
-  CALL display(volgridlev)
 ENDIF
 
 !j = volgrid(1)%griddim%dim%nx*volgrid(1)%griddim%dim%ny
@@ -394,8 +381,8 @@ ENDIF
 ! if coordinates of input grid are needed, do the following, then
 ! coordinates will be allocated in arrays volgrid(1)%griddim%dim%lon
 ! volgrid(1)%griddim%dim%lat
-CALL unproj(volgridz%griddim)
-CALL grid_metric_terms(volgridz%griddim%dim%lon, volgridz%griddim%dim%lat, &
+CALL unproj(volgridlev%griddim)
+CALL grid_metric_terms(volgridlev%griddim%dim%lon, volgridlev%griddim%dim%lat, &
  dxm1, dym1)
 
 ! compute variable indices
@@ -422,7 +409,6 @@ iu10 = vartable_index(volgridsurf%var, 'B11003') !U-component
 iv10 = vartable_index(volgridsurf%var, 'B11004') !V-component
 itp = vartable_index(volgridsurf%var, 'B13011') !Total Precipitation/Total Water Equivalent
 
-
 ! associate vertical level indices to pseudo pressure levels
 
 !l250 = 5
@@ -442,20 +428,6 @@ l850 = 32
 l925 = 37
 l950 = 39
 l1000 = 45
-
-
-! layer depth
-
-!IF (c_e(ih)) THEN
-!   DO k = 1, (SIZE(volgridlev%level)-1)
-!      depth(k) = volgridlev%voldati(1,1,k,1,1,ih)-volgridlev%voldati(1,1,k+1,1,1,ih)
-!   ENDDO
-!ELSE
-!   CALL l4f_category_log(category, L4F_ERROR, &
-!        'h missing')
-!   CALL raise_fatal_error()
-!ENDIF
-
 
 
 ! Omega 
@@ -964,7 +936,6 @@ CLOSE(2)
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-CALL delete(volgridz)
 CALL delete(volgridsurf)
 CALL delete(volgridua)
 CALL delete(volgridlev)
