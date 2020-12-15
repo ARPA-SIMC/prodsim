@@ -267,7 +267,7 @@ REAL,ALLOCATABLE :: example_tdewadv12h(:), example_hgeopot(:), example_geopavv(:
 REAL,ALLOCATABLE :: example_vws500(:), example_jet925(:)
 
 ! pressure and temperature values at levels
-REAL, DIMENSION(32) ::  aw ! allocate correctly!!!
+REAL,ALLOCATABLE ::  aw(:)
 
 CHARACTER(len=12) :: filetimename
 
@@ -285,14 +285,10 @@ opt = optionparser_new(description_msg= &
      'Preprocess 3d gridded data volumes in grib format for computing thunderstorm indices.', &
      usage_msg='Usage: prodsim_thunderstorm_index [options] inputsurf inputua outputfile')
 
-! for generating mask file:
-! vg6d_transform --trans-type=maskgen --sub-type=poly \
-!  --coord-file=/usr/local/share/libsim/macroaree_er --coord-FORMAT=shp \
-!  orog.grib mask.grib
 CALL optionparser_add(opt, ' ', 'mask-file', mask_file, default='', &
  help='mask file for spatial averaging of the results, the file can to be generated &
  &from a shapefile using `vg6d_transform --trans-type=maskgen --sub-type=poly &
- &--coord-file=<shapefile> --coord-FORMAT=shp fieldin maskout`')
+ &--coord-file=<shapefile> --coord-format=shp fieldin maskout`')
 
 CALL optionparser_add(opt, ' ', 'lev-file', lev_file, default='', &
  help='file with height of full model levels, it can be computed from a file with &
@@ -345,11 +341,11 @@ CALL read_input_volume(mask_file, volgridmask, volgridlev)
 ENDIF
 
 ! inputsurf
-CALL getarg(optind, input_file)
-CALL read_input_volume(input_file, volgrid_tmp, volgridlev)
+!CALL getarg(optind, input_file)
+!CALL read_input_volume(input_file, volgrid_tmp, volgridlev)
 ! round the volume to flatten similar levels and timeranges
-CALL rounding(volgrid_tmp, volgridsurf, level=almost_equal_levels, nostatproc=.TRUE.)
-CALL delete(volgrid_tmp)
+!CALL rounding(volgrid_tmp, volgridsurf, level=almost_equal_levels, nostatproc=.TRUE.)
+!CALL delete(volgrid_tmp)
 
 ! inputua
 CALL getarg(optind+1, input_file)
@@ -366,7 +362,7 @@ CALL getarg(optind+2, output_csv) ! +4?
 IF (ldisplay) THEN
   PRINT*,'input volume >>>>>>>>>>>>>>>>>>>>'
   CALL display(volgridlev)
-  CALL display(volgridsurf)
+!  CALL display(volgridsurf)
   CALL display(volgridua)
 ENDIF
 
@@ -403,11 +399,11 @@ iomega = vartable_index(volgridua%var, 'B11005')
 
 ih = vartable_index(volgridlev%var, 'B10007') !Level high
 
-it2 = vartable_index(volgridsurf%var, 'B12101') !Temperature/Dry-Bulb Temperature
-itd2 = vartable_index(volgridsurf%var, 'B12102') !Wet-Bulb Temperature
-iu10 = vartable_index(volgridsurf%var, 'B11003') !U-component
-iv10 = vartable_index(volgridsurf%var, 'B11004') !V-component
-itp = vartable_index(volgridsurf%var, 'B13011') !Total Precipitation/Total Water Equivalent
+!it2 = vartable_index(volgridsurf%var, 'B12101') !Temperature/Dry-Bulb Temperature
+!itd2 = vartable_index(volgridsurf%var, 'B12102') !Wet-Bulb Temperature
+!iu10 = vartable_index(volgridsurf%var, 'B11003') !U-component
+!iv10 = vartable_index(volgridsurf%var, 'B11004') !V-component
+!itp = vartable_index(volgridsurf%var, 'B13011') !Total Precipitation/Total Water Equivalent
 
 ! associate vertical level indices to pseudo pressure levels
 
@@ -661,7 +657,7 @@ ALLOCATE(totalwc(SIZE(volgridua%voldati,1),SIZE(volgridua%voldati,2)))
 !ENDDO
 
 k = 1
-DO WHILE (k<(SIZE(volgridua%voldati,3)+1)) ! k<46
+DO WHILE (k<(SIZE(volgridua%voldati,3))) ! k<46
    DO j = 1 , size(volgridua%voldati,2)
       DO i = 1 , size(volgridua%voldati,1)
          virtualt(i,j) = TVIR(volgridua%voldati(i,j,k,1,1,itd), &
@@ -697,6 +693,8 @@ ENDIF
 !W(TD,PT) mixing ratio [g/Kg]
 !!!!!!!!!!!!!!!!!!!!!!!!!!! SPESSORE STRATO IMPOSTATO MANUALMENTE IN alfc
 ALLOCATE(lfc(SIZE(volgridua%voldati,1),SIZE(volgridua%voldati,2)))
+ALLOCATE(aw(SIZE(volgridua%voldati,3)))
+
 DO j = 1 , size(volgridua%voldati,2)
    DO i = 1 , size(volgridua%voldati,1)
       
@@ -936,7 +934,7 @@ CLOSE(2)
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-CALL delete(volgridsurf)
+!CALL delete(volgridsurf)
 CALL delete(volgridua)
 CALL delete(volgridlev)
 
@@ -1001,7 +999,5 @@ outvol = volgrid_tmp(1)
 DEALLOCATE(volgrid_tmp)
 
 END SUBROUTINE read_input_volume
-
-
 
 END PROGRAM prodsim_thunderstorm_index
