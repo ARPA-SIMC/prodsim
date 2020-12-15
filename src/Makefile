@@ -7,7 +7,7 @@ FCFLAGS = -g -fbounds-check -Wall
 FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
 
 # libraries needed for linking, unused in the examples
-LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -leccodes -lsim_termolib -llog4c
+LDFLAGS = -llog4fortran -lsim_base -lsim_alchimia -lsim_vol7d -lsim_volgrid6d -leccodes -lsim_termolib -llog4c
 
 # List of executables to be built within the package
 PROGRAMS = prodsim_thunderstorm_index prodsim_thunderstorm_index_isobar \
