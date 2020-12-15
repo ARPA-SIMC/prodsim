@@ -10,7 +10,8 @@ FCFLAGS += -I/usr/include -I/usr/lib64/gfortran/modules
 LDFLAGS = -llog4fortran -lsim_base -lsim_vol7d -lsim_volgrid6d -leccodes -lsim_termolib -llog4c
 
 # List of executables to be built within the package
-PROGRAMS = prodsim_thunderstorm_index prodsim_vg6d_tcorr prodsim_create_projgrib \
+PROGRAMS = prodsim_thunderstorm_index prodsim_thunderstorm_index_isobar \
+ prodsim_vg6d_tcorr prodsim_create_projgrib \
  prodsim_v7d_fast_read prodsim_scangrib prodsim_expand_field prodsim_cnmc_lightning \
  prodsim_compute_anomaly prodsim_compute_poh cosmo_to_premoloch
 
