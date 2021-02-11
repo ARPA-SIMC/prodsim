@@ -28,6 +28,7 @@ PROD_T="GRIB1,,2,11"
 PROD_TD="GRIB1,,2,17"
 PROD_TS="GRIB1,,2,85"
 PROD_PREC="GRIB1,,2,61"
+PROD_SNOW="GRIB1,,2,78 or GRIB1,,2,79"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
 # timerange: instantaneous, accumulated, averaged
 TR_IST="GRIB1,0"
@@ -56,7 +57,7 @@ arki-query --data \
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_TS; timerange: $TR_IST; level: $LEV_SOIL" $DS > ts.grib
 arki-query --data \
-	   "reftime: ==$DATE; product: $PROD_PREC; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
+	   "reftime: ==$DATE; product: $PROD_PREC or $PROD_SNOW; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
 
@@ -70,6 +71,8 @@ vg6d_transform --output-variable-list=B13003 ttd.grib rh.grib
 
 # accumulate on desired interval
 vg6d_transform --comp-stat-proc=1:1 --comp-step="$STEP" prec.grib precacc.grib
+# compute total snow (and keep total precipitation)
+vg6d_transform --output-variable-list=B13011,B13201 precacc.grib precacctot.grib
 # average on desired interval
 vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
 
