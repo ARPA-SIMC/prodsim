@@ -19,6 +19,10 @@ DS=http://arkimet.metarpa:8090/dataset/cosmo_5M_ita
 # accumulation step
 STEP='0 01'
 
+# prepare a template for grib2 output
+grib_set -s centre=80 /usr/share/eccodes/samples/regular_ll_sfc_grib2.tmpl tmpl_grib2.grib
+GRIB2=grib_api:tmpl_grib2.grib:
+
 # define useful arkimet keys
 # product: wind, t and dew-point t, total precipitation, direct and diffuse radiation (COSMO specific)
 PROD_ORO="GRIB1,,2,6"
@@ -30,6 +34,7 @@ PROD_TS="GRIB1,,2,85"
 PROD_PREC="GRIB1,,2,61"
 PROD_SNOW="GRIB1,,2,78 or GRIB1,,2,79"
 PROD_RAD="GRIB1,,201,22 or GRIB1,,201,23"
+PROD_ISO0="GRIB1,,201,84"
 # timerange: instantaneous, accumulated, averaged
 TR_IST="GRIB1,0"
 TR_ACC="GRIB1,4"
@@ -38,6 +43,7 @@ TR_AVG="GRIB1,3"
 LEV_HOS="GRIB1,105"
 LEV_SURF="GRIB1,1"
 LEV_SOIL="GRIB1,111"
+LEV_ISO0="GRIB1,4"
 
 # clean old files
 rm -f oro.grib frland.grib uv.grib t.grib td.grib ts.grib prec.grib rad.grib constz.grib sd.grib rh.grib precacc.grib radavg.grib
@@ -60,6 +66,8 @@ arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_PREC or $PROD_SNOW; timerange: $TR_ACC; level: $LEV_SURF" $DS  > prec.grib
 arki-query --data \
 	   "reftime: ==$DATE; product: $PROD_RAD; timerange: $TR_AVG; level: $LEV_SURF" $DS > rad.grib
+arki-query --data \
+	   "reftime: ==$DATE; product: $PROD_ISO0; timerange: $TR_IST; level: $LEV_ISO0" $DS > iso0.grib
 
 # compute height of surface
 vg6d_transform --output-variable-list=B10009 oro.grib oroz.grib
@@ -74,7 +82,9 @@ vg6d_transform --comp-stat-proc=1:1 --comp-step="$STEP" prec.grib precacc.grib
 # compute total snow (and keep total precipitation)
 vg6d_transform --output-variable-list=B13011,B13201 precacc.grib precacctot.grib
 # average on desired interval
-vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib radavg.grib
+vg6d_transform --comp-stat-proc=0:0 --comp-step="$STEP" rad.grib ${GRIB2}radavg.grib
+# compute global visible radiation from direct and diffuse components
+vg6d_transform --output-variable-list=B14018 radavg.grib radavgglob.grib
 
 # keep temperature and dew point temperature only on land points
 vg6d_transform --trans-type=metamorphosis --sub-type=maskvalid \
