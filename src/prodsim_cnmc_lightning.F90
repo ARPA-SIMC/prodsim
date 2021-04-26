@@ -26,6 +26,7 @@ INTEGER :: category, ier
 CHARACTER(len=512) :: a_name, coord_file, file_template, input_file, output_file, line
 CHARACTER(len=12) :: filetimename
 CHARACTER(len=8) :: comp_algo
+CHARACTER(len=2) :: l_type
 TYPE(optionparser) :: opt
 INTEGER :: optind, optstatus
 LOGICAL :: version
@@ -59,6 +60,11 @@ CALL optionparser_add(opt, ' ', 'comp-algo', comp_algo, 'count', &
  help='type of aggregation algorithm, ''count'' for counting, &
  &''sum'' for summing ''max'' for taking the maximum of all values in &
  &space and time, ''logsum''??')
+
+l_type = cmiss
+CALL optionparser_add(opt, ' ', 'l-type', l_type, &
+ help='select only lighting events of the given type, ''C'' for cloud-cloud or &
+ &''G'' for cloud-ground, empty to consider all events')
 
 CALL optionparser_add(opt, ' ', 'comp-step', comp_step, '0000000000 01:00:00.000', help= &
  'length of time aggregation step in the format &
@@ -178,6 +184,9 @@ loop_comptime: DO WHILE(comptime <= c_sto)
       IF (ierr /= 0) EXIT loop_fileline
       CALL lightning%readline(line, datehint=filetime)
       IF (lightning%c_e()) THEN ! process the datum
+        IF (c_e(l_type)) THEN
+          IF (lightning%lighttype /= l_type) CYCLE loop_fileline
+        ENDIF
         DO i = 1, poly%arraysize
           IF (inside(lightning%coord, poly%array(i))) THEN
             lcount(i) = lcount(i) + 1
