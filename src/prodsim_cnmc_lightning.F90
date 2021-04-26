@@ -63,8 +63,8 @@ CALL optionparser_add(opt, ' ', 'comp-algo', comp_algo, 'count', &
 
 l_type = cmiss
 CALL optionparser_add(opt, ' ', 'l-type', l_type, &
- help='select only lighting events of the given type, ''C'' for cloud-cloud or &
- &''G'' for cloud-ground, empty to consider all events')
+ help='select only lighting events of the given type, '' C'' for cloud-cloud or &
+ &'' G'' for cloud-ground, empty to consider all events')
 
 CALL optionparser_add(opt, ' ', 'comp-step', comp_step, '0000000000 01:00:00.000', help= &
  'length of time aggregation step in the format &
