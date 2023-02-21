@@ -176,6 +176,25 @@ ENDDO
 
 END FUNCTION mask_average
 
+FUNCTION mask_average_miss(field, mask, nzones)
+REAL,INTENT(in) :: field(:,:)
+INTEGER,INTENT(in) :: mask(:,:)
+INTEGER,INTENT(in) :: nzones
+REAL :: mask_average_miss(nzones)
+
+INTEGER :: i, nval
+
+DO i = 1, nzones
+  nval = COUNT(mask == i .AND. c_e(field))
+  IF (nval > 0) THEN
+    mask_average_miss(i) = SUM(field, mask=(mask == i .AND. c_e(field)))/nval
+  ELSE
+    mask_average_miss(i) = rmiss
+  ENDIF
+ENDDO
+
+END FUNCTION mask_average_miss
+
 FUNCTION mask_gt_threshold(field, mask, nzones, thr)
 REAL,INTENT(in) :: field(:,:)
 INTEGER,INTENT(in) :: mask(:,:)
@@ -262,14 +281,15 @@ REAL,ALLOCATABLE :: dxm1(:,:), dym1(:,:)
 INTEGER,ALLOCATABLE :: intmask(:,:)
 INTEGER :: nzones
 ! variable indices
-INTEGER :: ip, iu, iv, iw, it, iqv, iqc, iqi, it2, itd2, iu10, iv10, itp, itd, irh, iomega, ih, ili
+INTEGER :: ip, iu, iv, iw, it, iqv, iqc, iqi, it2, itd2, iu10, iv10, itp, itd, irh, iomega, ih, ili,  icape, ih0
 ! level indices
-INTEGER :: l500, l700, l850, lfullatm
+INTEGER :: l500, l700, l850, lfullatm, l10m, lmu, lml, l0deg
 ! fields to be computed
 REAL,ALLOCATABLE :: geopadvection12h(:,:), kind(:,:)
 
 ! spatialised fields
-REAL,ALLOCATABLE :: ind_omega700(:), ind_geopadv(:), ind_kindex(:), ind_sli(:)
+REAL,ALLOCATABLE :: ind_omega700(:), ind_geopadv(:), ind_kindex(:), ind_sli(:), &
+ ind_deepshear(:), ind_h0(:), ind_cape_mu(:), ind_cape_ml(:)
 
 CHARACTER(len=12) :: filetimename
 
@@ -372,9 +392,11 @@ vl = (/'B11003', 'B11004', 'B12101', 'B12103', 'B11005', 'B10008', 'B13234'/)
 
 ! Fill low qv values to avoid problems in thermodynamic functions
 iqv = vartable_index(volgridisobar%var, 'B13001')
-WHERE (.NOT.c_e(volgridisobar%voldati(:,:,:,1,1,iqv)) .OR. volgridisobar%voldati(:,:,:,1,1,iqv) < 1.E-7)
-  volgridisobar%voldati(:,:,:,1,1,iqv) = 1.E-5
-END WHERE
+IF (c_e(iqv)) THEN
+  WHERE (.NOT.c_e(volgridisobar%voldati(:,:,:,1,1,iqv)) .OR. volgridisobar%voldati(:,:,:,1,1,iqv) < 1.E-7)
+    volgridisobar%voldati(:,:,:,1,1,iqv) = 1.E-5
+  END WHERE
+ENDIF 
 
 IF (alchemy(volgridisobar, vfn,vl,volgrid_tmp,copy=.TRUE.,vfnoracle=vfnoracle) == 0) THEN
   CALL register_termo(vfn)
@@ -407,49 +429,93 @@ iomega = vartable_index(volgridisobar%var, 'B11005')
 ih = vartable_index(volgridisobar%var, 'B10008') ! geopotential
 ili = vartable_index(volgridisobar%var, 'B13234') ! surface lifted index
 
-IF (.NOT.ALL(c_e((/iu,iv,it,itd,iqv,iomega,ih,ili/)))) THEN
-  CALL l4f_category_log(category,L4F_ERROR,'some output variables missing')
-  CALL raise_fatal_error()
-ENDIF
+! Need to add also cape_ml, cape_mu and hzerocl
+icape = vargrib_index(volgridisobar%var, (/78, 0, 7, 6/))
+ih0 = vargrib_index(volgridisobar%var, (/78, 0, 3, 6/))
+
+!IF (.NOT.ALL(c_e((/iu,iv,it,itd,iqv,iomega,ih,ili/)))) THEN
+!  CALL l4f_category_log(category,L4F_ERROR,'some output variables missing')
+!  CALL raise_fatal_error()
+!ENDIF
 
 ! locate pressure levels in volume
 l500 = index(volgridisobar%level, vol7d_level_new(100, 50000))
 l700 = index(volgridisobar%level, vol7d_level_new(100, 70000))
 l850 = index(volgridisobar%level, vol7d_level_new(100, 85000))
-lfullatm = index(volgridisobar%level, vol7d_level_new(10))
-IF (.NOT.ALL(c_e((/l500,l700,l850,lfullatm/)))) THEN
-  CALL l4f_category_log(category,L4F_ERROR,'some pressure levels missing')
-  CALL raise_fatal_error()
-ENDIF
+lfullatm = INDEX(volgridisobar%level, vol7d_level_new(10))
+l10m = index(volgridisobar%level, vol7d_level_new(103, 10000))
+lml = index(volgridisobar%level, vol7d_level_new(192))
+lmu = index(volgridisobar%level, vol7d_level_new(193))
+l0deg = index(volgridisobar%level, vol7d_level_new(4, imiss, 101, imiss))
+
+!IF (.NOT.ALL(c_e((/l500,l700,l850,lfullatm/)))) THEN
+!  CALL l4f_category_log(category,L4F_ERROR,'some pressure levels missing')
+!  CALL raise_fatal_error()
+!ENDIF
 
 ! Omega 
-IF (ALLOCATED(intmask)) THEN
+IF (ALLOCATED(intmask).AND.c_e(iomega).AND.c_e(l700)) THEN
   ind_omega700 = mask_gt_threshold_less(volgridisobar%voldati(:,:,l700,1,1,iomega), intmask, nzones, -0.5)
 ENDIF
 
 ! geopotential advection in 12h
-geopadvection12h = (grid_horiz_advection( &
- volgridisobar%voldati(:,:,l500, 1, 1, iu), &
- volgridisobar%voldati(:,:,l500, 1, 1, iv), &
- volgridisobar%voldati(:,:,l500, 1, 1, ih), dxm1, dym1)*4320)
+IF (c_e(l500).AND.c_e(iu).AND.c_e(iv).AND.c_e(ih)) THEN
+  geopadvection12h = (grid_horiz_advection( &
+   volgridisobar%voldati(:,:,l500, 1, 1, iu), &
+   volgridisobar%voldati(:,:,l500, 1, 1, iv), &
+   volgridisobar%voldati(:,:,l500, 1, 1, ih), dxm1, dym1)*4320)
 
-IF (ALLOCATED(intmask)) THEN
-  ind_geopadv = mask_average(geopadvection12h, intmask, nzones)
+  IF (ALLOCATED(intmask)) THEN
+    ind_geopadv = mask_average(geopadvection12h, intmask, nzones)
+  ENDIF
 ENDIF
 
 ! K index
-kind = kindex(volgridisobar%voldati(:,:,l850, 1, 1, it), &
- volgridisobar%voldati(:,:,l500, 1, 1, it), &
- volgridisobar%voldati(:,:,l850, 1, 1, itd), &
- volgridisobar%voldati(:,:,l700, 1, 1, it), &
- volgridisobar%voldati(:,:,l700, 1, 1, itd))
-IF (ALLOCATED(intmask)) THEN
-  ind_kindex = mask_average(kind, intmask, nzones)
+IF (c_e(l500).AND.c_e(l700).AND.c_e(l850).AND.c_e(it).AND.c_e(itd)) THEN
+  kind = kindex(volgridisobar%voldati(:,:,l850, 1, 1, it), &
+   volgridisobar%voldati(:,:,l500, 1, 1, it), &
+   volgridisobar%voldati(:,:,l850, 1, 1, itd), &
+   volgridisobar%voldati(:,:,l700, 1, 1, it), &
+   volgridisobar%voldati(:,:,l700, 1, 1, itd))
+  IF (ALLOCATED(intmask)) THEN
+    ind_kindex = mask_average(kind, intmask, nzones)
+  ENDIF
 ENDIF
 
 ! surface lifted index
-IF (ALLOCATED(intmask)) THEN
+IF (ALLOCATED(intmask).AND.c_e(ili)) THEN
   ind_sli = mask_average(volgridisobar%voldati(:,:,lfullatm, 1, 1, ili), intmask, nzones)
+ENDIF
+
+! deep shear index
+IF (ALLOCATED(intmask).AND.c_e(l500).AND.c_e(l10m).AND.c_e(iu).AND.c_e(iv)) THEN
+  ind_deepshear = mask_average(vertical_shear( &
+   volgridisobar%voldati(:,:,l500,1,1,iu), &
+   volgridisobar%voldati(:,:,l500,1,1,iv), &
+   volgridisobar%voldati(:,:,l10m,1,1,iu), &
+   volgridisobar%voldati(:,:,l10m,1,1,iv)), intmask, nzones)
+ENDIF
+
+! index h0
+IF (ALLOCATED(intmask).AND.c_e(l0deg).AND.c_e(ih0)) THEN
+! set points with 0c below surface to a true missing value
+  WHERE (volgridisobar%voldati(:,:,l0deg,1,1,ih0) < -990.)
+    volgridisobar%voldati(:,:,l0deg,1,1,ih0) = rmiss
+  END WHERE
+  ind_h0 = mask_average_miss(volgridisobar%voldati(:,:,l0deg,1,1,ih0), &
+   intmask, nzones)
+ENDIF
+
+! cape mu
+IF (ALLOCATED(intmask).AND.c_e(lmu).AND.c_e(icape)) THEN
+  ind_cape_mu = mask_average(volgridisobar%voldati(:,:,lmu,1,1,icape), &
+   intmask, nzones)
+ENDIF
+
+! cape ml
+IF (ALLOCATED(intmask).AND.c_e(lml).AND.c_e(icape)) THEN
+  ind_cape_ml = mask_average(volgridisobar%voldati(:,:,lml,1,1,icape), &
+   intmask, nzones)
 ENDIF
 
 
@@ -459,7 +525,7 @@ IF (lappend) THEN
 ELSE
   OPEN(unit=2,file=output_csv)
   WRITE(2,'(6(A,'',''))')'Data','Macroarea','%VV700', &
-   'AvvGeop500','Kindex','LI'
+   'AvvGeop500','Kindex','LI','DeepShear','H0','CAPE_MU','CAPE_ML'
 ENDIF
 
 
@@ -467,10 +533,14 @@ DO i = 1, nzones
   CALL init(csv_writer)
   CALL csv_record_addfield(csv_writer, filetimename(1:10))
   CALL csv_record_addfield(csv_writer, i)
-  CALL csv_record_addfield(csv_writer, ind_omega700(i))
-  CALL csv_record_addfield(csv_writer, ind_geopadv(i))
-  CALL csv_record_addfield(csv_writer, ind_kindex(i))
-  CALL csv_record_addfield(csv_writer, ind_sli(i))
+  CALL addfield_if_assoc(csv_writer, ind_omega700, i)
+  CALL addfield_if_assoc(csv_writer, ind_geopadv, i)
+  CALL addfield_if_assoc(csv_writer, ind_kindex, i)
+  CALL addfield_if_assoc(csv_writer, ind_sli, i)
+  CALL addfield_if_assoc(csv_writer, ind_deepshear, i)
+  CALL addfield_if_assoc(csv_writer, ind_h0, i)
+  CALL addfield_if_assoc(csv_writer, ind_cape_mu, i)
+  CALL addfield_if_assoc(csv_writer, ind_cape_ml, i)
   WRITE(2,'(A)')csv_record_getrecord(csv_writer)
   CALL delete(csv_writer)
 ENDDO
@@ -499,6 +569,26 @@ DO i = 1, SIZE(varlist)
 ENDDO
 
 END FUNCTION vartable_index
+
+FUNCTION vargrib_index(varlist, vargrib)
+TYPE(volgrid6d_var),INTENT(in) :: varlist(:)
+INTEGER,INTENT(in) :: vargrib(4)
+INTEGER :: vargrib_index
+
+INTEGER :: i
+
+vargrib_index = imiss
+DO i = 1, SIZE(varlist)
+  IF ((varlist(i)%centre == vargrib(1) .OR. .NOT.c_e(vargrib(1))) .AND. &
+   (varlist(i)%discipline == vargrib(2) .OR. .NOT.c_e(vargrib(2))) .AND. &
+   (varlist(i)%category == vargrib(3) .OR. .NOT.c_e(vargrib(3))) .AND. &
+   (varlist(i)%number == vargrib(4) .OR. .NOT.c_e(vargrib(4)))) THEN
+    vargrib_index = i
+    EXIT
+  ENDIF
+ENDDO
+
+END FUNCTION vargrib_index
 
 SUBROUTINE read_input_volume(infile, outvol, comparevol)
 CHARACTER(len=*),INTENT(in) :: infile
@@ -579,5 +669,19 @@ outvol = volgrid_tmp(1)
 DEALLOCATE(volgrid_tmp)
 
 END SUBROUTINE read_input_gridinfo
+
+
+SUBROUTINE addfield_if_assoc(writer, arr, i)
+TYPE(csv_record),INTENT(inout) :: writer
+REAL,ALLOCATABLE,INTENT(in) :: arr(:)
+INTEGER,intent(in) :: i
+
+IF (ALLOCATED(arr)) THEN
+  CALL csv_record_addfield(writer, arr(i))
+ELSE
+  CALL csv_record_addfield(writer, rmiss)
+ENDIF
+
+END SUBROUTINE addfield_if_assoc
 
 END PROGRAM prodsim_thunderstorm_index_isobar
