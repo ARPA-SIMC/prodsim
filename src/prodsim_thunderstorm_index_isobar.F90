@@ -387,8 +387,8 @@ ENDIF
 
 CALL register_termo(vfn)
 IF (ldisplay) CALL display(vfn)
-ALLOCATE(vl(6))
-vl = (/'B11003', 'B11004', 'B12101', 'B12103', 'B11005', 'B10008', 'B13234'/)
+ALLOCATE(vl(8))
+vl = (/'B11003', 'B11004', 'B12101', 'B12103', 'B11005', 'B10008', 'B13234', 'B13230'/)
 
 ! Fill low qv values to avoid problems in thermodynamic functions
 iqv = vartable_index(volgridisobar%var, 'B13001')
@@ -430,8 +430,13 @@ ih = vartable_index(volgridisobar%var, 'B10008') ! geopotential
 ili = vartable_index(volgridisobar%var, 'B13234') ! surface lifted index
 
 ! Need to add also cape_ml, cape_mu and hzerocl
-icape = vargrib_index(volgridisobar%var, (/78, 0, 7, 6/))
-ih0 = vargrib_index(volgridisobar%var, (/78, 0, 3, 6/))
+icape = vargrib_index(volgridisobar%var, (/imiss, 0, 7, 6/))
+ih0 = vargrib_index(volgridisobar%var, (/imiss, 0, 3, 6/))
+
+IF (ldisplay) THEN
+  PRINT*,'processed volume >>>>>>>>>>>>>>>>>>>>'
+  CALL display(volgridisobar)
+ENDIF
 
 !IF (.NOT.ALL(c_e((/iu,iv,it,itd,iqv,iomega,ih,ili/)))) THEN
 !  CALL l4f_category_log(category,L4F_ERROR,'some output variables missing')
