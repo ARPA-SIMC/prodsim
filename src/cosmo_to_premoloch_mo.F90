@@ -146,6 +146,64 @@ CALL grib_set(gid, 'values', rel_moist)
 END SUBROUTINE compute_rel_moist
 
 
+! convert DWD soil moisture index
+! To moloch soil moisture relative index
+! DWD SMI = (sm-cpwp)/(cfcap-cpwp)
+! Moloch rel_sm = (sm-cadp)/(cporv-cadp)
+SUBROUTINE compute_rel_moist_from_smi(gid)
+INTEGER,INTENT(inout) :: gid
+
+REAL(kind=wp),ALLOCATABLE :: rel_moist(:)
+INTEGER :: f1, v1, f2, v2, ij, st
+REAL(kind=wp) :: tl, bl, levthick
+
+CALL grib_get(gid, 'scaleFactorOfFirstFixedSurface', f1)
+CALL grib_get(gid, 'scaledValueOfFirstFixedSurface', v1)
+tl = REAL(v1,kind=wp)*10.0_wp**(-f1)
+CALL grib_get(gid, 'scaleFactorOfSecondFixedSurface', f2)
+CALL grib_get(gid, 'scaledValueOfSecondFixedSurface', v2)
+bl = REAL(v2,kind=wp)*10.0_wp**(-f2)
+levthick = (bl-tl)/1000.0_wp ! kg m-2 => kg m-3 => m3 m-3
+
+CALL store_field(gid, rel_moist)
+
+DO ij = 1, ni*nj
+  st = NINT(soiltype(ij))
+  IF (st > 0 .AND. st <= nsoiltyp) THEN
+    rel_moist(ij) = ((rel_moist(ij)*(cfcap(st)-cpwp(st))+cpwp(st)) - cadp(st))/ &
+     (cporv(st) - cadp(st))
+    rel_moist(ij) = MIN(MAX(rel_moist(ij), 0.0_wp), 1.0_wp)
+  ELSE
+    rel_moist(ij) = 1.0 ! sea?
+  ENDIF
+ENDDO
+
+! from layer to level
+! because of grib_api behavior, second surface has to be set to
+! missing before setting the values of the first surface
+CALL grib_set(gid, 'typeOfSecondFixedSurface', 255)
+CALL grib_set_missing(gid, 'scaleFactorOfSecondFixedSurface')
+CALL grib_set_missing(gid, 'scaledValueOfSecondFixedSurface')
+CALL grib_set(gid, 'typeOfFirstFixedSurface', 106)
+IF (f1 == f2) THEN ! simple case
+  IF (MOD(v1+v2, 2) == 0) THEN
+    CALL grib_set(gid, 'scaleFactorOfFirstFixedSurface', f1)
+    CALL grib_set(gid, 'scaledValueOfFirstFixedSurface', (v1+v2)/2)
+  ELSE
+    CALL grib_set(gid, 'scaleFactorOfFirstFixedSurface', f1+1)
+    CALL grib_set(gid, 'scaledValueOfFirstFixedSurface', (v1+v2)*5)
+  ENDIF
+ELSE
+  CALL grib_set(gid, 'scaleFactorOfFirstFixedSurface', MAX(f1,f2)+1)
+  CALL grib_set(gid, 'scaledValueOfFirstFixedSurface', &
+   NINT((bl+tl)/2.0_wp*10.0_wp**(MAX(f1,f2)+1)))
+ENDIF
+
+CALL grib_set(gid, 'values', rel_moist)
+
+END SUBROUTINE compute_rel_moist_from_smi
+
+
 SUBROUTINE compute_ice_cover(gid)
 INTEGER,INTENT(inout) :: gid
 
@@ -253,13 +311,13 @@ DO WHILE(.TRUE.)
           CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
       CASE(1) ! moisture
-        SELECT CASE(n)
+        SELECT CASE(n) ! 24 rain, 25 snow
         CASE(0) ! q
           CALL write_msg(gid, ofid, hyblayer=.TRUE.)
-        CASE(22) ! qc?
+        CASE(22) ! cloud water
           CALL grib_set(gid, 'parameterNumber', 83)
           CALL write_msg(gid, ofid, hyblayer=.TRUE.)
-        CASE(82) ! qi?
+        CASE(82) ! cloud ice
           CALL grib_set(gid, 'parameterNumber', 84)
           CALL write_msg(gid, ofid, hyblayer=.TRUE.)
         END SELECT
@@ -322,17 +380,21 @@ DO WHILE(.TRUE.)
             CALL grib_set(gid, 'parameterNumber', 2)
             CALL write_msg(gid, ofid)
           ENDIF
-        CASE(20) ! soil moisture
+        CASE(20) ! soil moisture, convert to m3/m3
           CALL grib_set(gid, 'parameterCategory', 0)
           CALL grib_set(gid, 'parameterNumber', 198) ! local
-          CALL  compute_rel_moist(gid)
+          CALL compute_rel_moist(gid)
 !        CALL grib_set(gid, 'discipline', 2)
           CALL write_msg(gid, ofid)
-        CASE(22) ! soil ice
-          CALL  compute_rel_moist(gid)
-!        CALL grib_set(gid, 'discipline', 2)
+        CASE(22) ! soil ice, convert to m3/m3
+          CALL compute_rel_moist(gid)
           CALL grib_set(gid, 'parameterCategory', 0)
           CALL grib_set(gid, 'parameterNumber', 199) ! local
+          CALL write_msg(gid, ofid)
+        CASE(200) ! DWD soil moisture index
+          CALL grib_set(gid, 'parameterCategory', 0)
+          CALL grib_set(gid, 'parameterNumber', 198) ! local
+          CALL compute_rel_moist_from_smi(gid)
           CALL write_msg(gid, ofid)
         END SELECT
       END SELECT
@@ -345,12 +407,12 @@ DO WHILE(.TRUE.)
       CASE(1) ! moisture
         SELECT CASE(n)
         CASE(60) ! snow depth
-          CALL grib_set(gid, 'parameterNumber', 13) ! ~
+          CALL grib_set(gid, 'parameterNumber', 13) ! check difference 13-60 in WMO
           CALL write_msg(gid, ofid)
         END SELECT
       CASE(3) ! mass
         SELECT CASE(n)
-        CASE(0) ! pressure
+        CASE(0) ! pressure is it needed? it is in 3d fields
           CALL write_msg(gid, ofid)
         END SELECT
       END SELECT
