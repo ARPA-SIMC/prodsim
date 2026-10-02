@@ -127,6 +127,8 @@ ENDIF
 CALL IMPORT(volgrid, filename=input_file, decode=.TRUE., &
  categoryappend="input_volume")
 
+
+projection_center_flag = 0 ! hemisphere, improve!
 CALL init(griddim_out, nx=nx, ny=ny, &
  xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, component_flag=component_flag, &
  proj_type=proj_type, lov=lov, zone=utm_zone, xoff=xoff, yoff=yoff, &
