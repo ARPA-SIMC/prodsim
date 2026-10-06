@@ -273,6 +273,17 @@ DO WHILE(.TRUE.)
         END SELECT
       END SELECT
     END SELECT
+  ELSE IF (l1 == 150 .AND. l2 == 255) THEN ! upper air half levels
+    SELECT CASE(d)
+    CASE(0) ! atmosphere
+      SELECT CASE(c)
+      CASE(3)
+        SELECT CASE(n)
+        CASE(6) ! hsurf
+          CALL write_msg(gid, ofid, hyblevel=.TRUE.)
+        END SELECT
+      END SELECT
+    END SELECT
   ENDIF
 
   CALL grib_release(gid)
